@@ -148,6 +148,20 @@ Example:
 - MATE3 or MATE3s with Modbus TCP enabled
 - Home Assistant must be able to reach the MATE3s over TCP port `502`
 
+
+## HACS installation
+
+Add this repository as a custom HACS integration:
+
+1. Open **HACS**.
+2. Open the three-dot menu and select **Custom repositories**.
+3. Add `https://github.com/s3pt1c0/ha-outback-mate3s`.
+4. Select **Integration**.
+5. Install **OutBack MATE3s**.
+6. Restart Home Assistant.
+7. Go to **Settings > Devices & services > Add integration**.
+8. Search for **OutBack MATE3s**.
+
 Example:
 
 ```text
