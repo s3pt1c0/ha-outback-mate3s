@@ -14,20 +14,23 @@ permissions:
 
 jobs:
   release:
+    name: Create GitHub Release
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Read integration version
         id: version
         shell: bash
         run: |
-          VERSION=$(python - <<'PY2'
+          VERSION=$(python - <<'PY'
           import json
-          with open('custom_components/outback_mate3s/manifest.json', encoding='utf-8') as f:
-              print(json.load(f)['version'])
-          PY2
+          from pathlib import Path
+
+          manifest = Path("custom_components/outback_mate3s/manifest.json")
+          print(json.loads(manifest.read_text(encoding="utf-8"))["version"])
+          PY
           )
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 

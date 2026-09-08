@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2.0 - 2026-09-08
+
+### HACS / repository presentation
+
+- Advanced versioning from 1.1.9 to **1.2.0**. Future patch progression continues as 1.2.1, 1.2.2, etc.
+- Added root `brand/` assets for repository/HACS presentation while retaining the integration-local brand assets under `custom_components/outback_mate3s/brand/`.
+- Added a three-step installation section with **My Home Assistant** buttons for opening the HACS repository and Home Assistant Integrations page.
+- Added `.github/workflows/hacs.yaml` for HACS validation.
+- Added `.github/workflows/hassfest.yaml` for Home Assistant hassfest validation.
+- Retained `.github/workflows/release.yaml` for automatic semantic GitHub tag/release creation.
+- No functional telemetry or write-control changes from 1.1.10.
+
+## 1.1.10 - 2026-09-08
+
+### Entity cleanup
+
+- Removed selected low-value Radian diagnostic sensors: temperature-compensated target voltage, generator L1/L2 voltage, AC-couple power, AC2/generator daily energy, Radian battery temperature, AUX output state, and AUX relay state.
+- Removed selected FNDC diagnostic/history sensors: battery temperature, status, days since full, charge-factor-corrected totals, min/max voltage timestamps, cycle charge factor/efficiency, total days at 100%, and lifetime kAh removed.
+- Removed AC1/AC2 current-limit sensor duplicates and AGS/generator last-run sensor entities. Writable `number` controls remain available.
+- Removed FM100/FM80 lifetime statistics, FET temperature, and enclosure temperature sensor entities.
+- No changes to selected write controls, Grid Use intervals, 10-second realtime polling, 5-minute control-data polling, or `Refresh Control Data`.
+
 ## 1.1.9 - 2026-09-08
 
 - Kept all functionality from 1.1.8 unchanged.

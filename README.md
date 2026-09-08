@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.1.9-green)
+![Version](https://img.shields.io/badge/version-1.2.0-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -17,10 +17,13 @@ It communicates directly with the MATE3s using Home Assistant's shared Modbus co
 - Native Home Assistant sensors and controls
 - Local polling
 - Selected write/control support with read-back verification
+- Realtime telemetry every 10 seconds
+- Writable/configuration data refresh every 5 minutes
+- Manual **Refresh Control Data** button
 - No cloud dependency
 - No MQTT dependency
 - No external scripts or computers required
-- Local integration branding support on Home Assistant 2026.3+
+- Local OutBack branding
 
 ## Tested system
 
@@ -59,11 +62,9 @@ No fixed absolute register addresses are required.
 
 ## Sensors
 
-Version 1.1.4 expands the integration to expose nearly all useful **read/status telemetry** available in the documented OutBack real-time blocks. Diagnostic and historical values are marked as diagnostic entities in Home Assistant where appropriate.
-
 ### Radian / AC
 
-Includes operating mode, AC input state/selection, error/warning/sell status, battery and temperature-compensated target voltage, AC frequency, grid/generator/output voltages on L1/L2, inverter output/charge currents, grid buy/sell currents, derived house current on L1/L2, real-time power flows, daily buy/sell/output/charger energy, AUX states, and left/right module temperatures.
+Includes operating mode, AC input state/selection, grid/output voltages on L1/L2, inverter output/charge currents, grid buy/sell currents, derived house current on L1/L2, real-time power flows, daily energy values, and selected module/diagnostic telemetry.
 
 ### House current calculation
 
@@ -77,7 +78,9 @@ This works in Pass Through mode as well as inverter/selling modes.
 
 ### Charge controllers
 
-For every detected FM100/FM80 controller the integration includes PV/battery voltage, battery output and array current, watts, charger state, daily min/max battery voltage, VOC and peak VOC, today kWh/Ah, lifetime energy, lifetime maximum watts/voltage/VOC, and available controller temperature telemetry.
+For every detected FM100/FM80 controller the integration includes useful realtime telemetry such as PV/battery voltage, output and array current, watts, charger state, daily min/max battery voltage, VOC/peak VOC, and today kWh/Ah.
+
+Lifetime statistics and controller-temperature entities that were judged low-value for the tested system are intentionally not exposed.
 
 ### Solar totals
 
@@ -86,22 +89,13 @@ For every detected FM100/FM80 controller the integration includes PV/battery vol
 
 ### FLEXnet-DC
 
-Includes SOC, battery voltage/current/temperature, status flags, input/output/net current and power, days since full, daily min/max SOC, daily input/output/net battery Ah and kWh, charge-factor-corrected totals, min/max battery voltage and timestamps, cycle charge factor/efficiency, total days at 100%, lifetime removed capacity, accumulated shunt data, and historical returned/removed energy plus maximum charge/discharge rates for Shunts A/B/C.
+Includes SOC, battery voltage/current, input/output/net current and power, daily SOC/energy statistics, accumulated shunt data, and selected historical maximum charge/discharge values.
 
-### OutBack System Control / AGS
+Low-value FNDC history/diagnostic entities removed in 1.1.10 remain intentionally excluded.
 
-Read-only sensors include current global sell/absorb/float values, charger and AC input current limits, AGS mode/state/timer, and generator last-run start/duration.
+## Writable controls
 
-### Polling efficiency
-
-The large number of Home Assistant entities does **not** result in one Modbus request per entity. The coordinator reads each OutBack real-time block once per polling cycle and all entities use the same cached data.
-
-
-## Writable controls (1.1.9)
-
-Version 1.1.9 includes a deliberately limited write surface for the settings requested for the tested system. Writes use the same Home Assistant shared Modbus connection, and R/W fields are read back after each write for verification.
-
-Writable/configuration values are automatically refreshed every **5 minutes** instead of every real-time polling cycle. Home Assistant also exposes a **Refresh Control Data** button to immediately re-read all currently exposed writable settings. Successful writes force an immediate settings refresh as well.
+Write support is deliberately limited to the controls used on the tested system. R/W fields use read-back verification.
 
 ### Radian / system controls
 
@@ -136,32 +130,54 @@ For each detected FM100/FM80:
 
 The documented OutBack map does not expose separate weekend times for Grid Use Interval 2, so they are not invented here.
 
-## Requirements
+## Installation Instructions (3 Steps)
 
-- Home Assistant **2026.9.0 or newer**
-- MATE3 / MATE3s with Modbus TCP enabled
-- TCP connectivity from Home Assistant to the MATE3s, normally port `502`
+### Step 1. HACS: add the Integration
 
-Typical configuration:
+[![Open your Home Assistant instance and open this repository inside HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=s3pt1c0&repository=ha-outback-mate3s&category=integration)
 
-```text
-Host: 192.168.1.100
-Port: 502
-Unit ID: 1
-```
-
-## HACS installation
-
-Add this repository as a custom HACS integration:
+Until **OutBack MATE3s** is included in the default HACS store, add it as a custom repository:
 
 1. Open **HACS**.
 2. Open the three-dot menu and select **Custom repositories**.
 3. Add `https://github.com/s3pt1c0/ha-outback-mate3s`.
-4. Select **Integration**.
+4. Select category **Integration**.
 5. Install **OutBack MATE3s**.
 6. Restart Home Assistant.
-7. Go to **Settings > Devices & services > Add integration**.
-8. Search for **OutBack MATE3s**.
+
+Once the repository is accepted into the default HACS store, you will be able to simply search for **OutBack MATE3s** in HACS and install it directly.
+
+### Step 2. Setup the Integration
+
+[![Open your Home Assistant instance and show your integrations.](https://my.home-assistant.io/badges/integrations.svg)](https://my.home-assistant.io/redirect/integrations/)
+
+1. Go to **Settings > Devices & services**.
+2. Select **Add Integration**.
+3. Search for **OutBack MATE3s**.
+4. Enter:
+   - **Host**: IP address of your MATE3/MATE3s
+   - **Port**: `502`
+   - **Unit ID**: `1`
+5. Submit.
+
+### Step 3. Verify Communication
+
+The integration automatically discovers the OutBack SunSpec blocks and creates the supported sensors and controls.
+
+Default refresh behavior:
+
+- Realtime telemetry: **10 seconds**
+- Writable/configuration data: **5 minutes**
+- Manual configuration refresh: **Refresh Control Data**
+- Successful writes: immediate control-data refresh
+
+Typical configuration:
+
+```text
+Host: 192.168.1.101
+Port: 502
+Unit ID: 1
+```
 
 ## Manual installation
 
@@ -179,10 +195,6 @@ to:
 
 Restart Home Assistant, then add **OutBack MATE3s** from **Settings > Devices & services**.
 
-## Polling
-
-The default polling interval is 10 seconds.
-
 ## Safety
 
 Write support is intentionally restricted to the controls listed above. Network settings, firmware-update registers, calibration values, model selection, serial-number fields, FNDC reset registers, and other potentially destructive settings remain unexposed.
@@ -191,17 +203,27 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 
 ## Versioning
 
-Tracked releases start at **1.1.3**. Patch releases will continue sequentially:
+The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.1.9...
+Current Release -> 1.2.0
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
-### HACS release versions
+## GitHub Releases / HACS version display
 
-Starting with **1.1.9**, the repository includes a GitHub Actions release workflow. When a new version is committed to the default branch, the workflow reads the version from `manifest.json` and creates a matching GitHub Release/tag if it does not already exist. This allows HACS/Home Assistant to display semantic versions such as `1.1.9` instead of short commit hashes.
+The repository includes `.github/workflows/release.yaml`. When `manifest.json` is updated on `main`, the workflow creates a matching GitHub tag and Release if one does not already exist. This lets HACS/Home Assistant display semantic versions such as `1.2.0` instead of short commit hashes.
+
+## Repository validation
+
+Version 1.2.0 adds automated validation workflows:
+
+- `.github/workflows/hacs.yaml` — HACS repository validation
+- `.github/workflows/hassfest.yaml` — Home Assistant hassfest validation
+- `.github/workflows/release.yaml` — automatic GitHub release/tag creation
+
+These help prepare the repository for eventual submission to the default HACS store.
 
 ## Troubleshooting
 

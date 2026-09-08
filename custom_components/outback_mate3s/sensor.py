@@ -75,7 +75,6 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "warning_flags", "Radian Warnings", icon="mdi:alert", category=DIAG),
     _desc("radian", "sell_status", "Radian Sell Status", icon="mdi:transmission-tower-export", category=DIAG),
     _desc("radian", "battery_voltage", "Radian Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
-    _desc("radian", "temp_comp_target_voltage", "Temperature Compensated Target Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1, category=DIAG),
     _desc("radian", "frequency", "AC Frequency", unit=UnitOfFrequency.HERTZ, device_class=SensorDeviceClass.FREQUENCY, state_class=MEAS, precision=1),
     _desc("radian", "selected_input_voltage", "Selected AC Input Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0, category=DIAG),
     _desc("radian", "minimum_input_voltage", "Minimum AC Input Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0, category=DIAG),
@@ -83,8 +82,6 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
 
     _desc("radian", "l1_grid_voltage", "Grid L1 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
     _desc("radian", "l2_grid_voltage", "Grid L2 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
-    _desc("radian", "l1_generator_voltage", "Generator L1 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
-    _desc("radian", "l2_generator_voltage", "Generator L2 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
     _desc("radian", "l1_output_voltage", "Output L1 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
     _desc("radian", "l2_output_voltage", "Output L2 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
 
@@ -104,16 +101,11 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "sell_power", "Grid Sell Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
     _desc("radian", "output_power", "Radian Output Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
     _desc("radian", "charge_power", "Radian Charge Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
-    _desc("radian", "ac_couple_power", "AC Couple Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
 
     _desc("radian", "today_ac1_l1_buy_energy", "Today Grid L1 Buy Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_ac1_l2_buy_energy", "Today Grid L2 Buy Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_ac1_l1_sell_energy", "Today Grid L1 Sell Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_ac1_l2_sell_energy", "Today Grid L2 Sell Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
-    _desc("radian", "today_ac2_l1_buy_energy", "Today Generator L1 Buy Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
-    _desc("radian", "today_ac2_l2_buy_energy", "Today Generator L2 Buy Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
-    _desc("radian", "today_ac2_l1_sell_energy", "Today AC2 L1 Sell Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1, category=DIAG),
-    _desc("radian", "today_ac2_l2_sell_energy", "Today AC2 L2 Sell Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1, category=DIAG),
     _desc("radian", "today_l1_output_energy", "Today L1 Output Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_l2_output_energy", "Today L2 Output Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_charger_energy", "Today Charger Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
@@ -124,23 +116,17 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "right_transformer_temperature", "Right Transformer Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
     _desc("radian", "right_capacitor_temperature", "Right Capacitor Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
     _desc("radian", "right_fet_temperature", "Right FET Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "battery_temperature", "Radian Battery Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "aux_output_state", "AUX Output State", icon="mdi:electric-switch", category=DIAG),
-    _desc("radian", "aux_relay_state", "AUX Relay State", icon="mdi:electric-switch", category=DIAG),
 )
 
 FNDC_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("fndc", "soc", "FNDC SOC", unit=PERCENTAGE, device_class=SensorDeviceClass.BATTERY, state_class=MEAS),
     _desc("fndc", "battery_voltage", "FNDC Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
     _desc("fndc", "battery_current", "FNDC Battery Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
-    _desc("fndc", "battery_temperature", "FNDC Battery Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0),
-    _desc("fndc", "status_flags", "FNDC Status", icon="mdi:battery-check", category=DIAG),
     _desc("fndc", "net_power", "FNDC Net Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=2),
     _desc("fndc", "input_power", "FNDC Input Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=2),
     _desc("fndc", "output_power", "FNDC Output Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=2),
     _desc("fndc", "input_current", "FNDC Input Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("fndc", "output_current", "FNDC Output Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
-    _desc("fndc", "days_since_full", "FNDC Days Since Full", unit="d", precision=1),
     _desc("fndc", "today_min_soc", "FNDC Today Minimum SOC", unit=PERCENTAGE, state_class=MEAS),
     _desc("fndc", "today_max_soc", "FNDC Today Maximum SOC", unit=PERCENTAGE, state_class=MEAS),
     _desc("fndc", "today_net_input_ah", "FNDC Today Net Input Ah", unit="Ah", state_class=TOTAL, precision=0),
@@ -149,16 +135,8 @@ FNDC_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("fndc", "today_net_output_kwh", "FNDC Today Net Output Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=2),
     _desc("fndc", "today_net_battery_ah", "FNDC Today Net Battery Ah", unit="Ah", state_class=TOTAL, precision=0),
     _desc("fndc", "today_net_battery_kwh", "FNDC Today Net Battery Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL, precision=2),
-    _desc("fndc", "charge_factor_corrected_net_battery_ah", "FNDC Charge Factor Corrected Net Battery Ah", unit="Ah", state_class=TOTAL, precision=0, category=DIAG),
-    _desc("fndc", "charge_factor_corrected_net_battery_kwh", "FNDC Charge Factor Corrected Net Battery Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL, precision=2, category=DIAG),
     _desc("fndc", "today_min_battery_voltage", "FNDC Today Minimum Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
-    _desc("fndc", "today_min_battery_time", "FNDC Today Minimum Battery Voltage Time", device_class=SensorDeviceClass.TIMESTAMP, category=DIAG),
     _desc("fndc", "today_max_battery_voltage", "FNDC Today Maximum Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
-    _desc("fndc", "today_max_battery_time", "FNDC Today Maximum Battery Voltage Time", device_class=SensorDeviceClass.TIMESTAMP, category=DIAG),
-    _desc("fndc", "cycle_charge_factor", "FNDC Cycle Charge Factor", unit=PERCENTAGE, state_class=MEAS, category=DIAG),
-    _desc("fndc", "cycle_kwh_charge_efficiency", "FNDC Cycle kWh Charge Efficiency", unit=PERCENTAGE, state_class=MEAS, category=DIAG),
-    _desc("fndc", "total_days_at_100", "FNDC Total Days at 100%", unit="d", state_class=TOTAL, precision=1, category=DIAG),
-    _desc("fndc", "lifetime_kah_removed", "FNDC Lifetime kAh Removed", unit="kAh", state_class=TOTAL_INC, category=DIAG),
 
     _desc("fndc", "shunt_a_current", f"Shunt A - {SHUNT_LABELS['a']} Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("fndc", "shunt_b_current", f"Shunt B - {SHUNT_LABELS['b']} Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
@@ -193,13 +171,6 @@ SYSTEM_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("system_control", "float_voltage", "Global Float Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1, category=DIAG),
     _desc("system_control", "float_time", "Global Float Time", unit="h", precision=1, category=DIAG),
     _desc("system_control", "charger_current_limit", "Inverter Charger Current Limit", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1, category=DIAG),
-    _desc("system_control", "ac1_current_limit", "AC1 Input Current Limit", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1, category=DIAG),
-    _desc("system_control", "ac2_current_limit", "AC2 Input Current Limit", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1, category=DIAG),
-    _desc("system_control", "ags_mode", "AGS Mode", icon="mdi:engine", category=DIAG),
-    _desc("system_control", "ags_state", "AGS State", icon="mdi:engine-outline"),
-    _desc("system_control", "ags_state_timer", "AGS State Timer", unit="s", category=DIAG),
-    _desc("system_control", "generator_last_run_start", "Generator Last Run Start", device_class=SensorDeviceClass.TIMESTAMP, category=DIAG),
-    _desc("system_control", "generator_last_run_duration", "Generator Last Run Duration", unit="s", category=DIAG),
 )
 
 CC_SENSOR_SPECS = (
@@ -214,13 +185,6 @@ CC_SENSOR_SPECS = (
     ("today_peak_voc", "Today Peak VOC", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
     ("today_energy_kwh", "Today Energy", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, TOTAL_INC, 1, None),
     ("today_ah", "Today Amp Hours", "Ah", None, TOTAL_INC, 0, None),
-    ("lifetime_energy_kwh", "Lifetime Energy", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, TOTAL_INC, 0, DIAG),
-    ("lifetime_kah", "Lifetime kAh", "kAh", None, TOTAL_INC, 1, DIAG),
-    ("lifetime_max_power_w", "Lifetime Maximum Power", UnitOfPower.WATT, SensorDeviceClass.POWER, MEAS, 0, DIAG),
-    ("lifetime_max_battery_voltage", "Lifetime Maximum Battery Voltage", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
-    ("lifetime_max_voc", "Lifetime Maximum VOC", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
-    ("output_fet_temperature", "Output FET Temperature", UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE, MEAS, 0, DIAG),
-    ("enclosure_temperature", "Enclosure Temperature", UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE, MEAS, 0, DIAG),
 )
 
 
