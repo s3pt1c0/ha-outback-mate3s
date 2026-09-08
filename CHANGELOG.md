@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.9 - 2026-09-08
+
+- Kept all functionality from 1.1.8 unchanged.
+- Added `.github/workflows/release.yaml` to automatically create a GitHub tag and Release matching the version in `manifest.json`.
+- Updated package and documentation version references to 1.1.9.
+
 ## 1.1.8 - 2026-09-08
 
 - Added automated GitHub Release creation for semantic HACS versioning.

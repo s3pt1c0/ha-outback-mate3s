@@ -1,0 +1,47 @@
+name: Create version release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "custom_components/outback_mate3s/manifest.json"
+      - ".github/workflows/release.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read integration version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(python - <<'PY2'
+          import json
+          with open('custom_components/outback_mate3s/manifest.json', encoding='utf-8') as f:
+              print(json.load(f)['version'])
+          PY2
+          )
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists; nothing to do."
+          else
+            gh release create "$VERSION" \
+              --target "$GITHUB_SHA" \
+              --title "OutBack MATE3s $VERSION" \
+              --generate-notes
+          fi
