@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.1.7 - 2026-09-08
+
+- Changed writable/configuration polling from approximately 1 minute to **5 minutes**.
+- Added a Home Assistant **Refresh Control Data** button for on-demand refresh of all currently exposed writable settings.
+- Successful writes still force an immediate control-data refresh so the UI reflects the new value without waiting five minutes.
+- Real-time Radian/FM/FNDC telemetry remains on the 10-second polling cadence.
+- Keeps the transient Modbus failure protection introduced in 1.1.6.
+
+## 1.1.6
+
+- Stability hotfix for intermittent `unavailable` entities.
+- Keep the 10-second real-time polling cadence.
+- Poll writable/configuration values approximately once per minute instead of every 10 seconds.
+- Read only the required controller configuration registers (24 instead of the full 90-register block).
+- Keep last-good writable/configuration values if an optional control refresh fails.
+- Tolerate up to two consecutive transient real-time Modbus failures before marking the integration unavailable.
+- Force an immediate configuration refresh after a successful write.
+- Keeps all L1/L2 buy, sell, inverter and calculated house-current sensors introduced in 1.1.4/1.1.5.
+
 All tracked changes to this project will be documented in this file.
 
 ## 1.1.5 - 2026-09-08

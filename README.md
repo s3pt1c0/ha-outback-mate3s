@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.1.5-green)
+![Version](https://img.shields.io/badge/version-1.1.7-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -97,9 +97,11 @@ Read-only sensors include current global sell/absorb/float values, charger and A
 The large number of Home Assistant entities does **not** result in one Modbus request per entity. The coordinator reads each OutBack real-time block once per polling cycle and all entities use the same cached data.
 
 
-## Writable controls (1.1.5)
+## Writable controls (1.1.7)
 
-Version 1.1.5 adds a deliberately limited write surface for the settings requested for the tested system. Writes use the same Home Assistant shared Modbus connection, and R/W fields are read back after each write for verification.
+Version 1.1.7 includes a deliberately limited write surface for the settings requested for the tested system. Writes use the same Home Assistant shared Modbus connection, and R/W fields are read back after each write for verification.
+
+Writable/configuration values are automatically refreshed every **5 minutes** instead of every real-time polling cycle. Home Assistant also exposes a **Refresh Control Data** button to immediately re-read all currently exposed writable settings. Successful writes force an immediate settings refresh as well.
 
 ### Radian / system controls
 
@@ -192,7 +194,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 Tracked releases start at **1.1.3**. Patch releases will continue sequentially:
 
 ```text
-1.1.3 -> 1.1.4 -> 1.1.5 -> 1.1.6 -> ...
+1.1.3 -> 1.1.4 -> 1.1.5 -> 1.1.6 -> 1.1.7 -> ...
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
