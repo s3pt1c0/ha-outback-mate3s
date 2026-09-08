@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.4 - 2026-09-08
+
+- Changed every exposed temperature entity to use **degrees Fahrenheit (°F)** as its native/default unit and convert OutBack Celsius telemetry before publishing to Home Assistant.
+- Corrected **Maximum VOC Today** decoding: DID 64111 Start 18 is raw volts and must not use the charge-controller voltage scale factor.
+- Corrected **Peak Amps Today** scaling to use the controller current scale factor; **Peak Watts Today** continues to use the power scale factor.
+- Kept the password-free setup/write behavior introduced in 1.2.3.
+
 ## 1.2.3 - 2026-09-08
 
 - Removed the write/installer-password field and the automatic `1732` write-unlock behavior.

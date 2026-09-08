@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.2.3-green)
+![Version](https://img.shields.io/badge/version-1.2.4-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -96,6 +96,11 @@ For every detected FM100/FM80 controller the integration includes useful realtim
 
 Lifetime statistics and controller-temperature entities that were judged low-value for the tested system are intentionally not exposed.
 
+### Temperature units
+
+All temperature entities exposed by this integration use **degrees Fahrenheit (°F)** as their native/default unit.
+
+
 ### Solar totals
 
 - Solar Total Power
@@ -113,7 +118,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.2.3** does **not** require a write/installer password. Writes are sent
+Version **1.2.4** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -236,7 +241,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.2.3
+Current Release -> 1.2.4
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

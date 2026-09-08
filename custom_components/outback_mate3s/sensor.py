@@ -110,12 +110,12 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "today_l2_output_energy", "Today L2 Output Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_charger_energy", "Today Charger Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
 
-    _desc("radian", "left_transformer_temperature", "Left Transformer Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "left_capacitor_temperature", "Left Capacitor Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "left_fet_temperature", "Left FET Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "right_transformer_temperature", "Right Transformer Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "right_capacitor_temperature", "Right Capacitor Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "right_fet_temperature", "Right FET Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "left_transformer_temperature", "Left Transformer Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "left_capacitor_temperature", "Left Capacitor Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "left_fet_temperature", "Left FET Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "right_transformer_temperature", "Right Transformer Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "right_capacitor_temperature", "Right Capacitor Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "right_fet_temperature", "Right FET Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
 )
 
 FNDC_SENSORS: tuple[OutbackSensorDescription, ...] = (
