@@ -1,24 +1,25 @@
-"""Read-only OutBack MATE3s Modbus/SunSpec device model."""
+"""OutBack MATE3s Modbus/SunSpec device model with read/write controls."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time as dt_time, timezone
 from typing import Any
 
 from modbus_connection import ModbusUnit
 
 from .const import (
     CHARGE_CONTROLLER_LABELS,
+    DID_CHARGE_CONTROLLER_CONFIG,
     DID_CHARGE_CONTROLLER_REALTIME,
     DID_FNDC_REALTIME,
+    DID_OUTBACK_GATEWAY,
+    DID_OUTBACK_SYSTEM_CONTROL,
     DID_RADIAN_SPLIT_REALTIME,
     SUNSPEC_BASE,
     SUNSPEC_END_DID,
     SUNSPEC_SIGNATURE,
 )
-
-DID_OUTBACK_SYSTEM_CONTROL = 64120
 
 
 def _s16(value: int) -> int:
@@ -207,8 +208,10 @@ class OutbackMate3sDevice:
         data: dict[str, Any] = {
             "radian": None,
             "charge_controllers": {},
+            "charge_controller_configs": {},
             "fndc": None,
             "system_control": None,
+            "gateway_control": None,
             "topology": [
                 {"address": b.address, "did": b.did, "length": b.length}
                 for b in self.blocks
@@ -237,7 +240,219 @@ class OutbackMate3sDevice:
                 await self._read_block(system_blocks[0])
             )
 
+        for block in self._blocks(DID_CHARGE_CONTROLLER_CONFIG):
+            config = self._parse_charge_controller_config(await self._read_block(block))
+            data["charge_controller_configs"][config["port"]] = config
+
+        gateway_blocks = self._blocks(DID_OUTBACK_GATEWAY)
+        if gateway_blocks:
+            # Only read the Grid Use Interval section (Start 337..350).
+            regs = await self.unit.read_holding_registers(
+                gateway_blocks[0].address + 336, 14
+            )
+            if len(regs) == 14:
+                data["gateway_control"] = self._parse_gateway_control(regs)
+
         return data
+
+    async def _async_block_for_port(self, did: int, port: int | None = None) -> Block:
+        """Find one discovered block, optionally matching its HUB port."""
+        blocks = self._blocks(did)
+        if not blocks:
+            raise OutbackProtocolError(f"Required DID {did} was not discovered")
+        if port is None:
+            return blocks[0]
+        for block in blocks:
+            value = await self.unit.read_holding_registers(block.address + 2, 1)
+            if value and value[0] == port:
+                return block
+        raise OutbackProtocolError(f"DID {did} for HUB port {port} was not discovered")
+
+    async def _async_write_raw(
+        self,
+        did: int,
+        start: int,
+        raw_value: int,
+        *,
+        port: int | None = None,
+        verify: bool = True,
+    ) -> None:
+        """Write one 16-bit field using a SunSpec Start number."""
+        if not 0 <= raw_value <= 0xFFFF:
+            raise ValueError(f"Raw register value out of range: {raw_value}")
+        block = await self._async_block_for_port(did, port)
+        address = block.address + start - 1
+        await self.unit.write_register(address, raw_value)
+        if verify:
+            check = await self.unit.read_holding_registers(address, 1)
+            if len(check) != 1 or check[0] != raw_value:
+                got = check[0] if check else None
+                raise OutbackProtocolError(
+                    f"Write verification failed for DID {did} Start {start}: "
+                    f"wrote {raw_value}, read {got}"
+                )
+
+    async def _async_write_scaled(
+        self,
+        did: int,
+        start: int,
+        sf_start: int,
+        value: float,
+        *,
+        port: int | None = None,
+    ) -> None:
+        """Scale and write one unsigned OutBack register, then verify it."""
+        block = await self._async_block_for_port(did, port)
+        sf_regs = await self.unit.read_holding_registers(block.address + sf_start - 1, 1)
+        if len(sf_regs) != 1:
+            raise OutbackProtocolError(
+                f"Unable to read scale factor for DID {did} Start {sf_start}"
+            )
+        sf = _s16(sf_regs[0])
+        raw = int(round(float(value) / (10**sf)))
+        await self._async_write_raw(did, start, raw, port=port, verify=True)
+
+    async def async_set_system_number(self, field: str, value: float) -> None:
+        """Set one approved Radian/System Control numeric setting."""
+        mapping = {
+            "sell_voltage": (12, 3),
+            "sell_current_limit": (13, 4),
+            "charger_current_limit": (18, 4),
+            "grid_input_current_limit": (19, 4),
+            "generator_input_current_limit": (20, 4),
+        }
+        if field not in mapping:
+            raise ValueError(f"Unsupported system setting: {field}")
+        start, sf_start = mapping[field]
+        await self._async_write_scaled(
+            DID_OUTBACK_SYSTEM_CONTROL, start, sf_start, value
+        )
+
+    async def async_set_charge_controller_number(
+        self, port: int, field: str, value: float
+    ) -> None:
+        """Set one approved FM100/FM80 charger parameter."""
+        scaled = {
+            "absorb_voltage": (11, 4),
+            "absorb_time": (12, 6),
+            "rebulk_voltage": (14, 4),
+            "float_voltage": (15, 4),
+            "bulk_current_limit": (16, 5),
+        }
+        if field == "absorb_end_amps":
+            await self._async_write_raw(
+                DID_CHARGE_CONTROLLER_CONFIG, 13, int(round(value)), port=port
+            )
+            return
+        if field not in scaled:
+            raise ValueError(f"Unsupported charge-controller setting: {field}")
+        start, sf_start = scaled[field]
+        await self._async_write_scaled(
+            DID_CHARGE_CONTROLLER_CONFIG, start, sf_start, value, port=port
+        )
+
+    async def async_set_charge_controller_grid_tie(
+        self, port: int, enabled: bool
+    ) -> None:
+        """Enable or disable Grid Tie Mode on one charge controller."""
+        await self._async_write_raw(
+            DID_CHARGE_CONTROLLER_CONFIG, 24, 1 if enabled else 0, port=port
+        )
+
+    async def async_set_grid_use(self, enabled: bool) -> None:
+        """Command the inverter AC input to Grid Use or Grid Drop."""
+        # DID 64120 Start 7 is write-only: 1=Use, 2=Drop.
+        await self._async_write_raw(
+            DID_OUTBACK_SYSTEM_CONTROL, 7, 1 if enabled else 2, verify=False
+        )
+
+    async def async_set_inverter_mode(self, mode: str) -> None:
+        """Command inverter mode Off/Search/On."""
+        values = {"Off": 1, "Search": 2, "On": 3}
+        if mode not in values:
+            raise ValueError(f"Unsupported inverter mode: {mode}")
+        await self._async_write_raw(
+            DID_OUTBACK_SYSTEM_CONTROL, 8, values[mode], verify=False
+        )
+
+    async def async_set_grid_tie(self, enabled: bool) -> None:
+        """Enable or disable Radian Grid Tie mode."""
+        # DID 64120 Start 9 is write-only: 1=Enable, 2=Disable.
+        await self._async_write_raw(
+            DID_OUTBACK_SYSTEM_CONTROL, 9, 1 if enabled else 2, verify=False
+        )
+
+    async def async_set_grid_use_interval_enabled(
+        self, interval: int, enabled: bool
+    ) -> None:
+        """Enable or disable MATE3s Grid Use Interval 1 or 2."""
+        starts = {1: 337, 2: 346}
+        if interval not in starts:
+            raise ValueError("Only Grid Use Interval 1 and 2 are supported")
+        await self._async_write_raw(
+            DID_OUTBACK_GATEWAY, starts[interval], 1 if enabled else 0
+        )
+
+    async def async_set_grid_use_interval_time(
+        self, interval: int, field: str, value: dt_time
+    ) -> None:
+        """Write one Grid Use start/stop time as hour + minute registers."""
+        starts = {
+            (1, "weekday_start"): 338,
+            (1, "weekday_stop"): 340,
+            (1, "weekend_start"): 342,
+            (1, "weekend_stop"): 344,
+            (2, "weekday_start"): 347,
+            (2, "weekday_stop"): 349,
+        }
+        key = (interval, field)
+        if key not in starts:
+            raise ValueError(f"Unsupported Grid Use Interval time: {key}")
+        block = await self._async_block_for_port(DID_OUTBACK_GATEWAY)
+        address = block.address + starts[key] - 1
+        values = [value.hour, value.minute]
+        await self.unit.write_registers(address, values)
+        check = await self.unit.read_holding_registers(address, 2)
+        if check != values:
+            raise OutbackProtocolError(
+                f"Grid Use Interval write verification failed: wrote {values}, read {check}"
+            )
+
+    @staticmethod
+    def _parse_charge_controller_config(r: list[int]) -> dict[str, Any]:
+        """Decode the approved writable fields from DID 64112."""
+        voltage_sf = _s16(r[3])
+        current_sf = _s16(r[4])
+        hours_sf = _s16(r[5])
+        return {
+            "port": r[2],
+            "absorb_voltage": _scaled(r[10], voltage_sf),
+            "absorb_time": _scaled(r[11], hours_sf),
+            "absorb_end_amps": r[12],
+            "rebulk_voltage": _scaled(r[13], voltage_sf),
+            "float_voltage": _scaled(r[14], voltage_sf),
+            "bulk_current_limit": _scaled(r[15], current_sf),
+            "grid_tie_mode": bool(r[23]),
+        }
+
+    @staticmethod
+    def _parse_gateway_control(r: list[int]) -> dict[str, Any]:
+        """Decode DID 64110 Start 337..350 Grid Use Interval values."""
+        def make_time(hour: int, minute: int) -> dt_time | None:
+            if 0 <= hour <= 23 and 0 <= minute <= 59:
+                return dt_time(hour, minute)
+            return None
+
+        return {
+            "interval_1_enabled": bool(r[0]),
+            "interval_1_weekday_start": make_time(r[1], r[2]),
+            "interval_1_weekday_stop": make_time(r[3], r[4]),
+            "interval_1_weekend_start": make_time(r[5], r[6]),
+            "interval_1_weekend_stop": make_time(r[7], r[8]),
+            "interval_2_enabled": bool(r[9]),
+            "interval_2_weekday_start": make_time(r[10], r[11]),
+            "interval_2_weekday_stop": make_time(r[12], r[13]),
+        }
 
     @staticmethod
     def _parse_radian(r: list[int]) -> dict[str, Any]:
@@ -465,8 +680,20 @@ class OutbackMate3sDevice:
         ac_current_sf = _s16(r[3])
         time_sf = _s16(r[4])
         ags_raw = r[21]
+        control_status = r[10]
+        if control_status & 0x0008:
+            inverter_mode = "Off"
+        elif control_status & 0x0010:
+            inverter_mode = "Search"
+        elif control_status & 0x0020:
+            inverter_mode = "On"
+        else:
+            inverter_mode = None
+
         return {
-            "control_status_raw": r[10],
+            "control_status_raw": control_status,
+            "inverter_mode": inverter_mode,
+            "grid_tie_enabled": bool(control_status & 0x0040),
             "sell_voltage": _scaled(r[11], dc_voltage_sf),
             "sell_current_limit": _scaled(r[12], ac_current_sf),
             "absorb_voltage": _scaled(r[13], dc_voltage_sf),

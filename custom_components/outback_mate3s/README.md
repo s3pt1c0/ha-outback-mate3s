@@ -1,3 +1,7 @@
-# OutBack MATE3s custom integration — v1.1.4
+# OutBack MATE3s
 
-Expanded read-only telemetry release. See the repository README and CHANGELOG for details.
+Home Assistant custom integration for direct OutBack MATE3s Modbus TCP telemetry and selected controls.
+
+Current version: **1.1.5**
+
+See the repository README for supported sensors, controls, installation and safety notes.

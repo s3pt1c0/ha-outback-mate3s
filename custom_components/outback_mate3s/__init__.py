@@ -11,7 +11,7 @@ from modbus_connection import ModbusTcpParams
 from .const import CONF_HOST, CONF_PORT, CONF_UNIT_ID
 from .coordinator import OutbackMate3sCoordinator
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.NUMBER, Platform.SWITCH, Platform.SELECT, Platform.TIME]
 
 type OutbackConfigEntry = ConfigEntry[OutbackMate3sCoordinator]
 
