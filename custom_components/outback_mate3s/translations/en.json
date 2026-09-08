@@ -3,21 +3,31 @@
     "step": {
       "user": {
         "title": "Connect to OutBack MATE3s",
-        "description": "Connect directly to the MATE3s using Home Assistant's shared Modbus connection.",
+        "description": "Connect directly to the MATE3s using Home Assistant's shared Modbus connection. The default MATE3s installer password is 1732; if your installer changed it, enter the current password for write controls.",
         "data": {
           "host": "Hostname or IP address",
           "port": "TCP port",
-          "unit_id": "Modbus Unit ID"
+          "unit_id": "Modbus Unit ID",
+          "write_password": "Write / installer password"
+        }
+      },
+      "reconfigure": {
+        "title": "Update MATE3s write password",
+        "description": "Enter the current MATE3s installer/write password used to authorize Modbus register changes.",
+        "data": {
+          "write_password": "Write / installer password"
         }
       }
     },
     "error": {
       "cannot_connect": "Unable to communicate with the MATE3s over Modbus TCP.",
       "not_outback": "The device responded, but the expected OutBack MATE3s SunSpec blocks were not found.",
-      "unknown": "Unexpected error. Check the Home Assistant logs."
+      "unknown": "Unexpected error. Check the Home Assistant logs.",
+      "invalid_write_password": "Write password must contain 1 to 16 ASCII characters."
     },
     "abort": {
-      "already_configured": "This MATE3s is already configured."
+      "already_configured": "This MATE3s is already configured.",
+      "reconfigure_successful": "Configuration updated successfully."
     }
   }
 }

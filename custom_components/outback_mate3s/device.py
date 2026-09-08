@@ -14,7 +14,6 @@ _LOGGER = logging.getLogger(__name__)
 
 
 from .const import (
-    CHARGE_CONTROLLER_LABELS,
     CONTROL_SCAN_INTERVAL,
     DID_CHARGE_CONTROLLER_CONFIG,
     DID_CHARGE_CONTROLLER_REALTIME,
@@ -37,6 +36,40 @@ def _scaled(value: int, sf: int, *, signed: bool = False) -> float:
     """Apply a SunSpec/OutBack base-10 scale factor."""
     raw = _s16(value) if signed else value
     return raw * (10**sf)
+
+
+def _decode_sunspec_string(registers: list[int]) -> str:
+    """Decode a SunSpec fixed-length string from 16-bit registers."""
+    raw = bytearray()
+    for value in registers:
+        raw.extend(((value >> 8) & 0xFF, value & 0xFF))
+    return raw.decode("ascii", errors="ignore").replace("\x00", "").strip()
+
+
+def _encode_sunspec_string(value: str, register_count: int) -> list[int]:
+    """Encode ASCII as a null-padded SunSpec string."""
+    raw = value.encode("ascii", errors="strict")
+    max_bytes = register_count * 2
+    if len(raw) > max_bytes:
+        raise ValueError(
+            f"SunSpec string is too long ({len(raw)} bytes; max {max_bytes})"
+        )
+    raw = raw.ljust(max_bytes, b"\x00")
+    return [
+        (raw[index] << 8) | raw[index + 1]
+        for index in range(0, max_bytes, 2)
+    ]
+
+
+def _controller_type_from_model(model: str | None) -> str:
+    """Return a stable controller family name from the OutBack model string."""
+    text = (model or "").upper().replace("-", " ")
+    compact = text.replace(" ", "")
+    if "FM100" in compact or "FLEXMAX100" in compact:
+        return "FM100"
+    if "FM80" in compact or "FLEXMAX80" in compact:
+        return "FM80"
+    return "Charge Controller"
 
 
 def _u32(msw: int, lsw: int) -> int:
@@ -147,9 +180,14 @@ class OutbackProtocolError(Exception):
 class OutbackMate3sDevice:
     """Read a MATE3s directly through a Home Assistant shared Modbus unit."""
 
-    def __init__(self, unit: ModbusUnit) -> None:
+    def __init__(self, unit: ModbusUnit, *, write_password: str = "1732") -> None:
         self.unit = unit
+        self.write_password = str(write_password).strip()
         self.blocks: list[Block] = []
+        # Cache DID/HUB-port block locations once they have been positively
+        # identified. Writes then use the known block instead of probing every
+        # controller again at the instant a user changes a setting.
+        self._block_by_port: dict[tuple[int, int], Block] = {}
         # Writable/configuration blocks change infrequently. Keep a last-good
         # cache and refresh those blocks every five minutes, on manual request,
         # or immediately after a write. Real-time telemetry stays at 10 seconds.
@@ -222,7 +260,11 @@ class OutbackMate3sDevice:
             await self.async_discover()
 
         data: dict[str, Any] = {
+            # ``radian`` is kept for backward compatibility with single-inverter
+            # installations. ``radians`` contains every discovered Radian keyed
+            # by HUB port and is used for stacked / multi-Radian systems.
             "radian": None,
+            "radians": {},
             "charge_controllers": {},
             "charge_controller_configs": dict(
                 self._control_cache.get("charge_controller_configs", {})
@@ -238,20 +280,43 @@ class OutbackMate3sDevice:
 
         # Real-time blocks remain on the normal 10-second coordinator cadence.
         radian_blocks = self._blocks(DID_RADIAN_SPLIT_REALTIME)
-        if radian_blocks:
-            data["radian"] = self._parse_radian(
-                await self._read_block(radian_blocks[0])
+        for block in radian_blocks:
+            radian = self._parse_radian(await self._read_block(block))
+            data["radians"][radian["port"]] = radian
+            self._block_by_port[
+                (DID_RADIAN_SPLIT_REALTIME, int(radian["port"]))
+            ] = block
+
+        # Give every Radian a deterministic label by HUB-port order. Keep the
+        # legacy single-Radian data key so existing installations retain their
+        # entity IDs and dashboards. Multi-Radian installations get per-port
+        # entities instead of an unsafe synthetic system total.
+        radian_ports = sorted(data["radians"])
+        for index, port in enumerate(radian_ports, start=1):
+            radian = data["radians"][port]
+            radian["label"] = (
+                "Radian"
+                if len(radian_ports) == 1
+                else f"Radian #{index} (Port {port})"
             )
+        if radian_ports:
+            data["radian"] = data["radians"][radian_ports[0]]
 
         for block in self._blocks(DID_CHARGE_CONTROLLER_REALTIME):
             cc = self._parse_charge_controller(await self._read_block(block))
             data["charge_controllers"][cc["port"]] = cc
+            self._block_by_port[
+                (DID_CHARGE_CONTROLLER_REALTIME, int(cc["port"]))
+            ] = block
 
         fndc_blocks = self._blocks(DID_FNDC_REALTIME)
         if fndc_blocks:
             data["fndc"] = self._parse_fndc(
                 await self._read_block(fndc_blocks[0])
             )
+            self._block_by_port[
+                (DID_FNDC_REALTIME, int(data["fndc"]["port"]))
+            ] = fndc_blocks[0]
 
         # Configuration/control data is intentionally much slower than real-time
         # telemetry. These settings normally do not change day-to-day, so poll
@@ -291,7 +356,28 @@ class OutbackMate3sDevice:
                     regs = await self.unit.read_holding_registers(block.address, 24)
                     if len(regs) == 24 and regs[0] == DID_CHARGE_CONTROLLER_CONFIG:
                         config = self._parse_charge_controller_config(regs)
+                        # Starts 82..90 contain the 18-character controller model.
+                        # Read this small range only on the slow control cadence so
+                        # FM80/FM100 labels can be generated without fixed HUB ports.
+                        try:
+                            model_regs = await self.unit.read_holding_registers(
+                                block.address + 81, 9
+                            )
+                            if len(model_regs) == 9:
+                                config["model"] = _decode_sunspec_string(model_regs)
+                        except Exception as err:
+                            _LOGGER.debug(
+                                "Controller model read failed at %s: %s",
+                                block.address,
+                                err,
+                            )
+                        config["controller_type"] = _controller_type_from_model(
+                            config.get("model")
+                        )
                         configs[config["port"]] = config
+                        self._block_by_port[
+                            (DID_CHARGE_CONTROLLER_CONFIG, int(config["port"]))
+                        ] = block
                 except Exception as err:  # optional control telemetry
                     _LOGGER.warning(
                         "Charge-controller config refresh failed at %s: %s",
@@ -322,7 +408,45 @@ class OutbackMate3sDevice:
             self._control_cache.get("charge_controller_configs", {})
         )
         data["gateway_control"] = self._control_cache.get("gateway_control")
+        self._apply_charge_controller_labels(data)
         return data
+
+    @staticmethod
+    def _apply_charge_controller_labels(data: dict[str, Any]) -> None:
+        """Label discovered controllers by model family and HUB-port order."""
+        controllers = data.get("charge_controllers", {})
+        configs = data.get("charge_controller_configs", {})
+        if not controllers:
+            return
+
+        type_by_port: dict[int, str] = {}
+        for port in sorted(controllers):
+            config = configs.get(port, {})
+            controller_type = config.get("controller_type") or _controller_type_from_model(
+                config.get("model")
+            )
+            type_by_port[port] = controller_type
+            controllers[port]["model"] = config.get("model")
+            controllers[port]["controller_type"] = controller_type
+
+        totals: dict[str, int] = {}
+        for controller_type in type_by_port.values():
+            totals[controller_type] = totals.get(controller_type, 0) + 1
+
+        seen: dict[str, int] = {}
+        generic_index = 0
+        for port in sorted(controllers):
+            controller_type = type_by_port[port]
+            seen[controller_type] = seen.get(controller_type, 0) + 1
+            if controller_type == "Charge Controller":
+                generic_index += 1
+                label = f"Charge Controller #{generic_index}"
+            elif totals[controller_type] > 1:
+                label = f"{controller_type} #{seen[controller_type]}"
+            else:
+                label = controller_type
+            controllers[port]["label"] = label
+            controllers[port]["hub_port"] = port
 
     def force_control_refresh(self) -> None:
         """Refresh writable settings on the next coordinator update."""
@@ -335,11 +459,38 @@ class OutbackMate3sDevice:
             raise OutbackProtocolError(f"Required DID {did} was not discovered")
         if port is None:
             return blocks[0]
+
+        cached = self._block_by_port.get((did, int(port)))
+        if cached is not None:
+            return cached
+
+        # Fallback only if the block was not already indexed during the normal
+        # poll. Successful fallback discovery is cached for future writes.
         for block in blocks:
             value = await self.unit.read_holding_registers(block.address + 2, 1)
             if value and value[0] == port:
+                self._block_by_port[(did, int(port))] = block
                 return block
         raise OutbackProtocolError(f"DID {did} for HUB port {port} was not discovered")
+
+    async def _async_unlock_writes(self) -> None:
+        """Send the MATE3s write/installer password before a write operation."""
+        password = self.write_password.strip()
+        if not password:
+            raise OutbackProtocolError(
+                "MATE3s write password is not configured. "
+                "Use Reconfigure on the integration and enter the current "
+                "installer/write password."
+            )
+
+        # DID 64110 Starts 14..21 are the 16-character write-password field.
+        # It is write-only, so there is intentionally no read-back verification.
+        gateway = await self._async_block_for_port(DID_OUTBACK_GATEWAY)
+        password_registers = _encode_sunspec_string(password, 8)
+        await self.unit.write_registers(
+            gateway.address + 14 - 1,
+            password_registers,
+        )
 
     async def _async_write_raw(
         self,
@@ -355,15 +506,22 @@ class OutbackMate3sDevice:
             raise ValueError(f"Raw register value out of range: {raw_value}")
         block = await self._async_block_for_port(did, port)
         address = block.address + start - 1
+        await self._async_unlock_writes()
         await self.unit.write_register(address, raw_value)
         self.force_control_refresh()
         if verify:
             check = await self.unit.read_holding_registers(address, 1)
             if len(check) != 1 or check[0] != raw_value:
                 got = check[0] if check else None
+                hint = (
+                    " (0x8000 can indicate an unavailable/rejected value; "
+                    "verify the MATE3s installer/write password)"
+                    if got == 0x8000
+                    else ""
+                )
                 raise OutbackProtocolError(
                     f"Write verification failed for DID {did} Start {start}: "
-                    f"wrote {raw_value}, read {got}"
+                    f"wrote {raw_value}, read {got}{hint}"
                 )
 
     async def _async_write_scaled(
@@ -485,6 +643,7 @@ class OutbackMate3sDevice:
         block = await self._async_block_for_port(DID_OUTBACK_GATEWAY)
         address = block.address + starts[key] - 1
         values = [value.hour, value.minute]
+        await self._async_unlock_writes()
         await self.unit.write_registers(address, values)
         self.force_control_refresh()
         check = await self.unit.read_holding_registers(address, 2)
@@ -645,7 +804,7 @@ class OutbackMate3sDevice:
 
         return {
             "port": port,
-            "label": CHARGE_CONTROLLER_LABELS.get(port, f"Charge Controller Port {port}"),
+            "label": f"Charge Controller Port {port}",
             "battery_voltage": _scaled(r[8], voltage_sf),
             "pv_voltage": _scaled(r[9], voltage_sf),
             "output_current": _scaled(r[10], current_sf),

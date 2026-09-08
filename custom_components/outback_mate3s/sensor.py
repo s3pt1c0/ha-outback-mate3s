@@ -26,7 +26,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import OutbackConfigEntry
-from .const import DOMAIN, SHUNT_LABELS
+from .const import DOMAIN
 from .coordinator import OutbackMate3sCoordinator
 
 
@@ -138,9 +138,9 @@ FNDC_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("fndc", "today_min_battery_voltage", "FNDC Today Minimum Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
     _desc("fndc", "today_max_battery_voltage", "FNDC Today Maximum Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
 
-    _desc("fndc", "shunt_a_current", f"Shunt A - {SHUNT_LABELS['a']} Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
-    _desc("fndc", "shunt_b_current", f"Shunt B - {SHUNT_LABELS['b']} Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
-    _desc("fndc", "shunt_c_current", f"Shunt C - {SHUNT_LABELS['c']} Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("fndc", "shunt_a_current", "Shunt A Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("fndc", "shunt_b_current", "Shunt B Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("fndc", "shunt_c_current", "Shunt C Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("fndc", "shunt_a_accumulated_ah", "Shunt A Accumulated Ah", unit="Ah", state_class=TOTAL, category=DIAG),
     _desc("fndc", "shunt_a_accumulated_kwh", "Shunt A Accumulated Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL, precision=2, category=DIAG),
     _desc("fndc", "shunt_b_accumulated_ah", "Shunt B Accumulated Ah", unit="Ah", state_class=TOTAL, category=DIAG),
@@ -149,14 +149,11 @@ FNDC_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("fndc", "shunt_c_accumulated_kwh", "Shunt C Accumulated Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL, precision=2, category=DIAG),
 )
 
-# Historical shunt telemetry from the FNDC real-time block.
+# Historical maximum shunt telemetry from the FNDC real-time block.
+# Cumulative returned/removed Ah and kWh entities are intentionally not exposed.
 for _letter in ("a", "b", "c"):
     _upper = _letter.upper()
     FNDC_SENSORS += (
-        _desc("fndc", f"shunt_{_letter}_returned_ah", f"Shunt {_upper} Historical Returned Ah", unit="Ah", state_class=TOTAL_INC, category=DIAG),
-        _desc("fndc", f"shunt_{_letter}_returned_kwh", f"Shunt {_upper} Historical Returned Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=2, category=DIAG),
-        _desc("fndc", f"shunt_{_letter}_removed_ah", f"Shunt {_upper} Historical Removed Ah", unit="Ah", state_class=TOTAL_INC, category=DIAG),
-        _desc("fndc", f"shunt_{_letter}_removed_kwh", f"Shunt {_upper} Historical Removed Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=2, category=DIAG),
         _desc("fndc", f"shunt_{_letter}_max_charge_current", f"Shunt {_upper} Maximum Charge Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1, category=DIAG),
         _desc("fndc", f"shunt_{_letter}_max_charge_power", f"Shunt {_upper} Maximum Charge Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=2, category=DIAG),
         _desc("fndc", f"shunt_{_letter}_max_discharge_current", f"Shunt {_upper} Maximum Discharge Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1, category=DIAG),
@@ -193,8 +190,17 @@ async def async_setup_entry(hass, entry: OutbackConfigEntry, async_add_entities)
     coordinator = entry.runtime_data
     entities: list[SensorEntity] = []
 
-    if coordinator.data.get("radian") is not None:
+    radians = coordinator.data.get("radians", {})
+    if len(radians) <= 1 and coordinator.data.get("radian") is not None:
+        # Preserve the original entity unique IDs on existing single-Radian
+        # installations.
         entities.extend(OutbackSensor(coordinator, desc) for desc in RADIAN_SENSORS)
+    elif len(radians) > 1:
+        for port in sorted(radians):
+            entities.extend(
+                OutbackRadianSensor(coordinator, port, desc)
+                for desc in RADIAN_SENSORS
+            )
 
     if coordinator.data.get("fndc") is not None:
         entities.extend(OutbackSensor(coordinator, desc) for desc in FNDC_SENSORS)
@@ -249,6 +255,37 @@ class OutbackSensor(_OutbackBase, SensorEntity):
             return self.entity_description.value_fn(self.coordinator.data)
         except (KeyError, TypeError):
             return None
+
+
+class OutbackRadianSensor(_OutbackBase, SensorEntity):
+    """One per-Radian sensor for stacked/multi-inverter systems."""
+
+    entity_description: OutbackSensorDescription
+
+    def __init__(
+        self,
+        coordinator: OutbackMate3sCoordinator,
+        port: int,
+        description: OutbackSensorDescription,
+    ) -> None:
+        super().__init__(coordinator)
+        self._port = port
+        self.entity_description = description
+        self._field = description.key.removeprefix("radian_")
+        radian = coordinator.data.get("radians", {}).get(port, {})
+        label = radian.get("label", f"Radian Port {port}")
+        self._attr_name = f"{label} {description.name}"
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_radian{port}_{self._field}"
+        )
+
+    @property
+    def native_value(self):
+        return (
+            self.coordinator.data.get("radians", {})
+            .get(self._port, {})
+            .get(self._field)
+        )
 
 
 class OutbackChargeControllerSensor(_OutbackBase, SensorEntity):

@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.2.0-green)
+![Version](https://img.shields.io/badge/version-1.2.2-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -14,6 +14,7 @@ It communicates directly with the MATE3s using Home Assistant's shared Modbus co
 - Direct Modbus TCP communication with the MATE3s
 - Uses Home Assistant's shared Modbus connection API
 - Automatic SunSpec block discovery
+- Dynamic multi-Radian and multi-charge-controller discovery by HUB port
 - Native Home Assistant sensors and controls
 - Local polling
 - Selected write/control support with read-back verification
@@ -25,7 +26,7 @@ It communicates directly with the MATE3s using Home Assistant's shared Modbus co
 - No external scripts or computers required
 - Local OutBack branding
 
-## Tested system
+## Tested and supported topologies
 
 Initially developed and tested with:
 
@@ -37,13 +38,24 @@ Initially developed and tested with:
 | 4 | FM80 |
 | 10 | FLEXnet-DC |
 
-FNDC shunts in the initial test system:
+Version **1.2.1** added dynamic multi-device discovery for stacked systems.
+A second validation topology is:
 
-| Shunt | Assignment |
-|---|---|
-| A | Inverter |
-| B | FM80 |
-| C | FM100 |
+| HUB Port | Device |
+|---:|---|
+| 1 | GS8048A #1 |
+| 2 | GS8048A #2 |
+| 3 | FM100 #1 |
+| 4 | FM100 #2 |
+| 5 | FM100 #3 |
+| 10 | FLEXnet-DC |
+
+Radian and charge-controller HUB ports are discovered dynamically; these
+port numbers are examples, not hardcoded requirements. Controller model strings
+are read from DID 64112 and used to generate FM80/FM100 labels automatically.
+
+FNDC shunts are intentionally presented as generic **Shunt A/B/C** entities because
+shunt assignments are installation-specific.
 
 ## OutBack SunSpec blocks
 
@@ -66,6 +78,8 @@ No fixed absolute register addresses are required.
 
 Includes operating mode, AC input state/selection, grid/output voltages on L1/L2, inverter output/charge currents, grid buy/sell currents, derived house current on L1/L2, real-time power flows, daily energy values, and selected module/diagnostic telemetry.
 
+On a single-Radian system the existing entity IDs are preserved. On stacked systems, every discovered Radian receives its own sensor set, labeled by Radian number and HUB port (for example `Radian #1 (Port 1)` and `Radian #2 (Port 2)`). Version 1.2.1 intentionally does **not** invent aggregate Radian power totals until stacked-system telemetry has been validated in the field.
+
 ### House current calculation
 
 OutBack DID 64115 does not publish a dedicated per-leg load-current register. House current is derived from the documented current balance:
@@ -78,7 +92,7 @@ This works in Pass Through mode as well as inverter/selling modes.
 
 ### Charge controllers
 
-For every detected FM100/FM80 controller the integration includes useful realtime telemetry such as PV/battery voltage, output and array current, watts, charger state, daily min/max battery voltage, VOC/peak VOC, and today kWh/Ah.
+For every detected FM100/FM80 controller the integration includes useful realtime telemetry such as PV/battery voltage, output and array current, watts, charger state, daily min/max battery voltage, VOC/peak VOC, and today kWh/Ah. FM80/FM100 identity and numbering are generated dynamically from the controller configuration/model data rather than fixed HUB-port mappings.
 
 Lifetime statistics and controller-temperature entities that were judged low-value for the tested system are intentionally not exposed.
 
@@ -89,7 +103,7 @@ Lifetime statistics and controller-temperature entities that were judged low-val
 
 ### FLEXnet-DC
 
-Includes SOC, battery voltage/current, input/output/net current and power, daily SOC/energy statistics, accumulated shunt data, and selected historical maximum charge/discharge values.
+Includes SOC, battery voltage/current, input/output/net current and power, daily SOC/energy statistics, and selected historical maximum shunt charge/discharge values. Cumulative shunt returned/removed Ah and kWh entities are intentionally not exposed.
 
 Low-value FNDC history/diagnostic entities removed in 1.1.10 remain intentionally excluded.
 
@@ -97,7 +111,21 @@ Low-value FNDC history/diagnostic entities removed in 1.1.10 remain intentionall
 
 Write support is deliberately limited to the controls used on the tested system. R/W fields use read-back verification.
 
+### Write authentication
+
+Version **1.2.2** authenticates each Modbus write through the MATE3s
+`OutBack_Write_Password` field before changing a register. Existing installations
+default to **1732**, which is the documented default MATE3s installer password.
+If the installer password was changed, use **Reconfigure** on the Home Assistant
+integration and enter the current password. The password is not exposed as an entity.
+
+Charge-controller configuration blocks are also cached by HUB port after discovery,
+so a write does not need to rediscover a controller at the exact moment the setting
+is changed.
+
 ### Radian / system controls
+
+The DID 64120 controls below are gateway/system controls and remain exposed once per MATE3s system, including stacked multi-Radian systems.
 
 - Grid Use switch: ON = Grid Use, OFF = Grid Drop
 - Inverter Mode select: Off / Search / On
@@ -206,14 +234,14 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.2.0
+Current Release 1.2.2
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## GitHub Releases / HACS version display
 
-The repository includes `.github/workflows/release.yaml`. When `manifest.json` is updated on `main`, the workflow creates a matching GitHub tag and Release if one does not already exist. This lets HACS/Home Assistant display semantic versions such as `1.2.0` instead of short commit hashes.
+The repository includes `.github/workflows/release.yaml`. When `manifest.json` is updated on `main`, the workflow creates a matching GitHub tag and Release if one does not already exist. This lets HACS/Home Assistant display semantic versions such as `1.2.1` instead of short commit hashes.
 
 ## Repository validation
 

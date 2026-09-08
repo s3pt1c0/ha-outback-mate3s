@@ -104,10 +104,12 @@ class OutbackCCNumber(_Base, NumberEntity):
         coordinator: OutbackMate3sCoordinator,
         port: int,
         label: str,
+        controller_type: str,
         spec: CCNumberSpec,
     ) -> None:
         super().__init__(coordinator)
         self._port = port
+        self._controller_type = controller_type
         self._spec = spec
         self._attr_name = f"{label} {spec.name}"
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_cc{port}_{spec.field}_control"
@@ -118,9 +120,9 @@ class OutbackCCNumber(_Base, NumberEntity):
         if spec.maximum is not None:
             maximum = spec.maximum
         elif spec.field == "bulk_current_limit":
-            maximum = 80.0 if label == "FM80" else 100.0
+            maximum = 80.0 if controller_type == "FM80" else 100.0
         else:
-            maximum = 80.0 if label == "FM80" else 68.0
+            maximum = 80.0 if controller_type == "FM80" else 68.0
         self._attr_native_max_value = maximum
 
     @property
@@ -147,6 +149,14 @@ async def async_setup_entry(hass, entry: OutbackConfigEntry, async_add_entities)
     for port, config in sorted(coordinator.data.get("charge_controller_configs", {}).items()):
         realtime = coordinator.data.get("charge_controllers", {}).get(port, {})
         label = realtime.get("label", f"Charge Controller Port {port}")
-        entities.extend(OutbackCCNumber(coordinator, port, label, spec) for spec in CC_NUMBERS)
+        controller_type = (
+            config.get("controller_type")
+            or realtime.get("controller_type")
+            or "Charge Controller"
+        )
+        entities.extend(
+            OutbackCCNumber(coordinator, port, label, controller_type, spec)
+            for spec in CC_NUMBERS
+        )
 
     async_add_entities(entities)

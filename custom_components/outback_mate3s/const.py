@@ -7,9 +7,11 @@ DOMAIN = "outback_mate3s"
 CONF_HOST = "host"
 CONF_PORT = "port"
 CONF_UNIT_ID = "unit_id"
+CONF_WRITE_PASSWORD = "write_password"
 
 DEFAULT_PORT = 502
 DEFAULT_UNIT_ID = 1
+DEFAULT_WRITE_PASSWORD = "1732"
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=10)
 CONTROL_SCAN_INTERVAL = timedelta(minutes=5)
 
@@ -24,14 +26,3 @@ DID_RADIAN_SPLIT_REALTIME = 64115
 DID_FNDC_REALTIME = 64118
 DID_OUTBACK_SYSTEM_CONTROL = 64120
 
-CHARGE_CONTROLLER_LABELS = {
-    2: "FM100 #1",
-    3: "FM100 #2",
-    4: "FM80",
-}
-
-SHUNT_LABELS = {
-    "a": "Inverter",
-    "b": "FM80",
-    "c": "2x FM100",
-}

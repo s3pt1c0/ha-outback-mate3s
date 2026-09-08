@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.2.2 - 2026-09-08
+
+### Write reliability and authentication
+
+- Added MATE3s Modbus write authentication through DID 64110 `OutBack_Write_Password` before every exposed write operation.
+- Existing installations default to the documented MATE3s installer password **1732**; integrations with a changed installer password can update it through the Home Assistant **Reconfigure** flow.
+- The write password is stored in the config entry and is not exposed as an entity.
+- Added a persistent DID/HUB-port block cache so charge-controller writes use the controller block already identified during normal polling instead of probing the HUB port again at write time.
+- Improved write-verification errors when the read-back value is `0x8000`.
+- Grid Use Interval time writes now authenticate before the FC16 multi-register write.
+- Removed the 12 cumulative FNDC shunt history entities requested by the user: returned/removed Ah and returned/removed energy for Shunts A, B, and C.
+- Retained Shunt A/B/C maximum charge/discharge current and power diagnostics.
+
+## 1.2.1 - 2026-09-08
+
+### Multi-device support
+
+- Added dynamic discovery and telemetry for **multiple Radian GS8048A** inverters (all DID 64115 blocks), keyed by HUB port.
+- Single-Radian installations keep the existing entity unique IDs for backward compatibility.
+- Multi-Radian installations receive a separate sensor set for every discovered inverter, labeled by Radian number and HUB port.
+- Added dynamic charge-controller model detection from DID 64112 model data; FM80/FM100 labels and numbering no longer depend on fixed HUB ports.
+- Supports the additional validation topology: ports 1-2 = 2 x GS8048A, ports 3-5 = 3 x FM100, port 10 = FNDC.
+- Charge-controller writes continue to target the controller's actual HUB port.
+- Grid Use, Inverter Mode, Grid Tie and other DID 64120 controls remain system-level controls instead of being incorrectly duplicated per Radian.
+- Grid Use state now checks all discovered Radians and reports unknown if stacked inverter states disagree.
+- FNDC shunt names are now generic Shunt A/B/C because physical shunt assignments are installation-specific.
+- No synthetic stacked-Radian total power sensors were added; per-inverter values are exposed until field validation confirms the correct aggregation behavior.
+
 ## 1.2.0 - 2026-09-08
 
 ### HACS / repository presentation

@@ -10,7 +10,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from modbus_connection import ModbusError, ModbusUnit
 
-from .const import DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import (
+    CONF_WRITE_PASSWORD,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_WRITE_PASSWORD,
+    DOMAIN,
+)
 from .device import OutbackMate3sDevice, OutbackProtocolError
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,7 +38,12 @@ class OutbackMate3sCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             config_entry=entry,
         )
         self.config_entry = entry
-        self.device = OutbackMate3sDevice(unit)
+        self.device = OutbackMate3sDevice(
+            unit,
+            write_password=str(
+                entry.data.get(CONF_WRITE_PASSWORD, DEFAULT_WRITE_PASSWORD)
+            ),
+        )
         self._consecutive_failures = 0
 
     async def _async_update_data(self) -> dict[str, Any]:

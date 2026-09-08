@@ -7,14 +7,17 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components.modbus import async_get_temporary_unit
 from homeassistant.config_entries import ConfigFlow
+from homeassistant.helpers import selector
 from modbus_connection import ModbusError, ModbusTcpParams
 
 from .const import (
     CONF_HOST,
     CONF_PORT,
     CONF_UNIT_ID,
+    CONF_WRITE_PASSWORD,
     DEFAULT_PORT,
     DEFAULT_UNIT_ID,
+    DEFAULT_WRITE_PASSWORD,
     DOMAIN,
 )
 from .device import OutbackMate3sDevice, OutbackProtocolError
@@ -43,6 +46,12 @@ async def _async_validate(
         )
 
 
+def _password_selector():
+    return selector.TextSelector(
+        selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+    )
+
+
 class OutbackMate3sConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle an OutBack MATE3s config flow."""
 
@@ -59,32 +68,46 @@ class OutbackMate3sConfigFlow(ConfigFlow, domain=DOMAIN):
             host = str(user_input[CONF_HOST]).strip()
             port = int(user_input[CONF_PORT])
             unit_id = int(user_input[CONF_UNIT_ID])
+            write_password = str(
+                user_input.get(CONF_WRITE_PASSWORD, DEFAULT_WRITE_PASSWORD)
+            ).strip()
 
             try:
-                await _async_validate(self.hass, host, port, unit_id)
-            except (ModbusError, TimeoutError):
-                errors["base"] = "cannot_connect"
-            except OutbackProtocolError:
-                errors["base"] = "not_outback"
-            except Exception:
-                errors["base"] = "unknown"
+                write_password.encode("ascii")
+                valid_password = 1 <= len(write_password) <= 16
+            except UnicodeEncodeError:
+                valid_password = False
+
+            if not valid_password:
+                errors[CONF_WRITE_PASSWORD] = "invalid_write_password"
             else:
-                await self.async_set_unique_id(f"{host}:{port}:{unit_id}")
-                self._abort_if_unique_id_configured(
-                    updates={
-                        CONF_HOST: host,
-                        CONF_PORT: port,
-                        CONF_UNIT_ID: unit_id,
-                    }
-                )
-                return self.async_create_entry(
-                    title=f"OutBack MATE3s {host}",
-                    data={
-                        CONF_HOST: host,
-                        CONF_PORT: port,
-                        CONF_UNIT_ID: unit_id,
-                    },
-                )
+                try:
+                    await _async_validate(self.hass, host, port, unit_id)
+                except (ModbusError, TimeoutError):
+                    errors["base"] = "cannot_connect"
+                except OutbackProtocolError:
+                    errors["base"] = "not_outback"
+                except Exception:
+                    errors["base"] = "unknown"
+                else:
+                    await self.async_set_unique_id(f"{host}:{port}:{unit_id}")
+                    self._abort_if_unique_id_configured(
+                        updates={
+                            CONF_HOST: host,
+                            CONF_PORT: port,
+                            CONF_UNIT_ID: unit_id,
+                            CONF_WRITE_PASSWORD: write_password,
+                        }
+                    )
+                    return self.async_create_entry(
+                        title=f"OutBack MATE3s {host}",
+                        data={
+                            CONF_HOST: host,
+                            CONF_PORT: port,
+                            CONF_UNIT_ID: unit_id,
+                            CONF_WRITE_PASSWORD: write_password,
+                        },
+                    )
 
         schema = vol.Schema(
             {
@@ -108,11 +131,59 @@ class OutbackMate3sConfigFlow(ConfigFlow, domain=DOMAIN):
                         else DEFAULT_UNIT_ID
                     ),
                 ): int,
+                vol.Required(
+                    CONF_WRITE_PASSWORD,
+                    default=(
+                        user_input.get(CONF_WRITE_PASSWORD, DEFAULT_WRITE_PASSWORD)
+                        if user_input
+                        else DEFAULT_WRITE_PASSWORD
+                    ),
+                ): _password_selector(),
             }
         )
 
         return self.async_show_form(
             step_id="user",
             data_schema=schema,
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ):
+        """Allow the MATE3s write/installer password to be changed."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            write_password = str(user_input[CONF_WRITE_PASSWORD]).strip()
+            try:
+                write_password.encode("ascii")
+                valid_password = 1 <= len(write_password) <= 16
+            except UnicodeEncodeError:
+                valid_password = False
+
+            if not valid_password:
+                errors[CONF_WRITE_PASSWORD] = "invalid_write_password"
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={CONF_WRITE_PASSWORD: write_password},
+                )
+
+        current_password = str(
+            entry.data.get(CONF_WRITE_PASSWORD, DEFAULT_WRITE_PASSWORD)
+        )
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_WRITE_PASSWORD,
+                        default=current_password,
+                    ): _password_selector()
+                }
+            ),
             errors=errors,
         )

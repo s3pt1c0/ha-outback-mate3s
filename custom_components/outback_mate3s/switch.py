@@ -35,9 +35,21 @@ class GridUseSwitch(_Base, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        radian = self.coordinator.data.get("radian") or {}
-        state = radian.get("ac_input_state_raw")
-        return bool(state) if state is not None else None
+        radians = self.coordinator.data.get("radians", {})
+        states = [
+            radian.get("ac_input_state_raw")
+            for radian in radians.values()
+            if radian.get("ac_input_state_raw") is not None
+        ]
+        if not states:
+            radian = self.coordinator.data.get("radian") or {}
+            state = radian.get("ac_input_state_raw")
+            return bool(state) if state is not None else None
+        if all(state == states[0] for state in states):
+            return bool(states[0])
+        # A stacked system should normally agree. Show unknown rather than
+        # claiming Grid Use/Drop when individual Radians disagree.
+        return None
 
     async def async_turn_on(self, **kwargs) -> None:
         await self.coordinator.device.async_set_grid_use(True)
@@ -121,7 +133,7 @@ async def async_setup_entry(hass, entry: OutbackConfigEntry, async_add_entities)
     coordinator = entry.runtime_data
     entities: list[SwitchEntity] = []
 
-    if coordinator.data.get("radian") is not None:
+    if coordinator.data.get("radians") or coordinator.data.get("radian") is not None:
         entities.append(GridUseSwitch(coordinator))
     if coordinator.data.get("system_control") is not None:
         entities.append(RadianGridTieSwitch(coordinator))
