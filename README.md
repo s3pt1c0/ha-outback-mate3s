@@ -51,57 +51,31 @@ The integration discovers the actual register locations dynamically and reads th
 | Radian Split Phase Real-Time | `64115` |
 | Charge Controller Real-Time | `64111` |
 | FLEXnet-DC Real-Time | `64118` |
+| OutBack System Control / AGS | `64120` |
 
 No fixed absolute register addresses are required.
 
 ## Sensors
 
+Version 1.1.4 expands the integration to expose nearly all useful **read/status telemetry** available in the documented OutBack real-time blocks. Diagnostic and historical values are marked as diagnostic entities in Home Assistant where appropriate.
+
 ### Radian / AC
 
-- Radian Mode
-- AC Input State
-- AC Frequency
-- Radian Battery Voltage
-- Radian Output Power
-- Radian Charge Power
+Includes operating mode, AC input state/selection, error/warning/sell status, battery and temperature-compensated target voltage, AC frequency, grid/generator/output voltages on L1/L2, inverter output/charge currents, grid buy/sell currents, derived house current on L1/L2, real-time power flows, daily buy/sell/output/charger energy, AUX states, and left/right module temperatures.
 
-### Grid
+### House current calculation
 
-- Grid L1 Voltage
-- Grid L2 Voltage
-- Grid Buy Power
-- Grid Sell Power
-- Grid L1 Buy Current
-- Grid L2 Buy Current
-- Grid L1 Sell Current
-- Grid L2 Sell Current
-
-### House
-
-- House Power
-- House L1 Current
-- House L2 Current
-
-**House L1/L2 Current is derived**, because OutBack DID 64115 exposes inverter output, charge, buy, and sell current for each leg but does not expose a dedicated load-current register. The integration uses this current balance per leg:
+OutBack DID 64115 does not publish a dedicated per-leg load-current register. House current is derived from the documented current balance:
 
 ```text
 House Current = Buy Current + Inverter Output Current - Sell Current - Charge Current
 ```
 
-This is important in Pass Through mode, where inverter output current may be zero while the house is powered directly from the grid.
+This works in Pass Through mode as well as inverter/selling modes.
 
 ### Charge controllers
 
-For every detected controller:
-
-- PV Voltage
-- Battery Voltage
-- Output Current
-- Power
-- Charger State
-- Today Energy
-
-Controllers on the initially tested system are labeled by HUB port as FM100 #1, FM100 #2, and FM80.
+For every detected FM100/FM80 controller the integration includes PV/battery voltage, battery output and array current, watts, charger state, daily min/max battery voltage, VOC and peak VOC, today kWh/Ah, lifetime energy, lifetime maximum watts/voltage/VOC, and available controller temperature telemetry.
 
 ### Solar totals
 
@@ -110,14 +84,15 @@ Controllers on the initially tested system are labeled by HUB port as FM100 #1, 
 
 ### FLEXnet-DC
 
-- FNDC SOC
-- FNDC Battery Voltage
-- FNDC Battery Current
-- FNDC Net Power
-- FNDC Days Since Full
-- Shunt A Current
-- Shunt B Current
-- Shunt C Current
+Includes SOC, battery voltage/current/temperature, status flags, input/output/net current and power, days since full, daily min/max SOC, daily input/output/net battery Ah and kWh, charge-factor-corrected totals, min/max battery voltage and timestamps, cycle charge factor/efficiency, total days at 100%, lifetime removed capacity, accumulated shunt data, and historical returned/removed energy plus maximum charge/discharge rates for Shunts A/B/C.
+
+### OutBack System Control / AGS
+
+Read-only sensors include current global sell/absorb/float values, charger and AC input current limits, AGS mode/state/timer, and generator last-run start/duration.
+
+### Polling efficiency
+
+The large number of Home Assistant entities does **not** result in one Modbus request per entity. The coordinator reads each OutBack real-time block once per polling cycle and all entities use the same cached data.
 
 ## Requirements
 

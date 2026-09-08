@@ -2,6 +2,27 @@
 
 All tracked changes to this project will be documented in this file.
 
+## 1.1.4 - 2026-09-08
+
+### Added
+
+- Full Radian L1/L2 grid, generator, output-voltage and AC-current telemetry.
+- Radian error, warning, sell-status, AUX state, module-temperature and daily energy sensors.
+- Expanded FM100/FM80 telemetry: array current, min/max voltage, VOC, Ah, lifetime and temperature sensors.
+- Major FLEXnet-DC expansion including daily SOC/energy, battery temperature, status, input/output flows, cycle efficiency, accumulated shunt telemetry, historical returned/removed energy, and maximum charge/discharge rates.
+- OutBack System Control / AGS read-only status sensors from DID 64120.
+- Diagnostic categorization for historical and troubleshooting-oriented entities.
+
+### Changed
+
+- Version bumped to 1.1.4.
+- Expanded README sensor documentation.
+- Polling remains block-based: additional entities do not create additional per-entity Modbus requests.
+
+### Safety
+
+- Still read-only. No Modbus write operations were added.
+
 ## 1.1.3 - 2026-09-08
 
 First tracked release.
