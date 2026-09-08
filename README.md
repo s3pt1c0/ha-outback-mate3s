@@ -151,6 +151,6 @@ Example:
 Example:
 
 ```text
-MATE3s IP: 172.16.35.252
+MATE3s IP: 10.10.1.100
 Modbus TCP Port: 502
 Unit ID: 1
