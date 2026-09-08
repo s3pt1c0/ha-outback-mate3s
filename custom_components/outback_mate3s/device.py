@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from datetime import datetime, time as dt_time, timezone
+from time import monotonic
 from typing import Any
 
 from modbus_connection import ModbusUnit
 
+_LOGGER = logging.getLogger(__name__)
+
+
 from .const import (
     CHARGE_CONTROLLER_LABELS,
+    CONTROL_SCAN_INTERVAL,
     DID_CHARGE_CONTROLLER_CONFIG,
     DID_CHARGE_CONTROLLER_REALTIME,
     DID_FNDC_REALTIME,
@@ -144,6 +150,16 @@ class OutbackMate3sDevice:
     def __init__(self, unit: ModbusUnit) -> None:
         self.unit = unit
         self.blocks: list[Block] = []
+        # Writable/configuration blocks change infrequently. Keep a last-good
+        # cache and refresh those blocks every five minutes, on manual request,
+        # or immediately after a write. Real-time telemetry stays at 10 seconds.
+        self._control_cache: dict[str, Any] = {
+            "system_control": None,
+            "charge_controller_configs": {},
+            "gateway_control": None,
+        }
+        self._last_control_refresh: float | None = None
+        self._force_control_refresh = True
 
     async def async_discover(self) -> list[Block]:
         """Discover the SunSpec chain without relying on pysunspec2."""
@@ -201,23 +217,26 @@ class OutbackMate3sDevice:
         return regs
 
     async def async_read_all(self) -> dict[str, Any]:
-        """Read the useful real-time OutBack blocks."""
+        """Read real-time data and periodically refresh writable settings."""
         if not self.blocks:
             await self.async_discover()
 
         data: dict[str, Any] = {
             "radian": None,
             "charge_controllers": {},
-            "charge_controller_configs": {},
+            "charge_controller_configs": dict(
+                self._control_cache.get("charge_controller_configs", {})
+            ),
             "fndc": None,
-            "system_control": None,
-            "gateway_control": None,
+            "system_control": self._control_cache.get("system_control"),
+            "gateway_control": self._control_cache.get("gateway_control"),
             "topology": [
                 {"address": b.address, "did": b.did, "length": b.length}
                 for b in self.blocks
             ],
         }
 
+        # Real-time blocks remain on the normal 10-second coordinator cadence.
         radian_blocks = self._blocks(DID_RADIAN_SPLIT_REALTIME)
         if radian_blocks:
             data["radian"] = self._parse_radian(
@@ -234,26 +253,80 @@ class OutbackMate3sDevice:
                 await self._read_block(fndc_blocks[0])
             )
 
-        system_blocks = self._blocks(DID_OUTBACK_SYSTEM_CONTROL)
-        if system_blocks:
-            data["system_control"] = self._parse_system_control(
-                await self._read_block(system_blocks[0])
+        # Configuration/control data is intentionally much slower than real-time
+        # telemetry. These settings normally do not change day-to-day, so poll
+        # them every five minutes. A manual Home Assistant button and every
+        # successful write can force an immediate refresh.
+        now = monotonic()
+        refresh_controls = (
+            self._force_control_refresh
+            or self._last_control_refresh is None
+            or now - self._last_control_refresh
+            >= CONTROL_SCAN_INTERVAL.total_seconds()
+        )
+
+        if refresh_controls:
+            system_blocks = self._blocks(DID_OUTBACK_SYSTEM_CONTROL)
+            if system_blocks:
+                try:
+                    # Starts 1..27 are enough for every value currently exposed.
+                    regs = await self.unit.read_holding_registers(
+                        system_blocks[0].address, 27
+                    )
+                    if len(regs) == 27 and regs[0] == DID_OUTBACK_SYSTEM_CONTROL:
+                        self._control_cache["system_control"] = (
+                            self._parse_system_control(regs)
+                        )
+                except Exception as err:  # optional control telemetry
+                    _LOGGER.warning("System-control refresh failed: %s", err)
+
+            configs: dict[int, dict[str, Any]] = dict(
+                self._control_cache.get("charge_controller_configs", {})
             )
+            for block in self._blocks(DID_CHARGE_CONTROLLER_CONFIG):
+                try:
+                    # We only expose Starts 3..24. Reading 24 registers instead
+                    # of the entire 90-register configuration block is gentler
+                    # on the MATE3s and is enough for every current control.
+                    regs = await self.unit.read_holding_registers(block.address, 24)
+                    if len(regs) == 24 and regs[0] == DID_CHARGE_CONTROLLER_CONFIG:
+                        config = self._parse_charge_controller_config(regs)
+                        configs[config["port"]] = config
+                except Exception as err:  # optional control telemetry
+                    _LOGGER.warning(
+                        "Charge-controller config refresh failed at %s: %s",
+                        block.address,
+                        err,
+                    )
+            self._control_cache["charge_controller_configs"] = configs
 
-        for block in self._blocks(DID_CHARGE_CONTROLLER_CONFIG):
-            config = self._parse_charge_controller_config(await self._read_block(block))
-            data["charge_controller_configs"][config["port"]] = config
+            gateway_blocks = self._blocks(DID_OUTBACK_GATEWAY)
+            if gateway_blocks:
+                try:
+                    # Grid Use Interval section only: Starts 337..350.
+                    regs = await self.unit.read_holding_registers(
+                        gateway_blocks[0].address + 336, 14
+                    )
+                    if len(regs) == 14:
+                        self._control_cache["gateway_control"] = (
+                            self._parse_gateway_control(regs)
+                        )
+                except Exception as err:  # optional control telemetry
+                    _LOGGER.warning("Grid Use Interval refresh failed: %s", err)
 
-        gateway_blocks = self._blocks(DID_OUTBACK_GATEWAY)
-        if gateway_blocks:
-            # Only read the Grid Use Interval section (Start 337..350).
-            regs = await self.unit.read_holding_registers(
-                gateway_blocks[0].address + 336, 14
-            )
-            if len(regs) == 14:
-                data["gateway_control"] = self._parse_gateway_control(regs)
+            self._force_control_refresh = False
+            self._last_control_refresh = now
 
+        data["system_control"] = self._control_cache.get("system_control")
+        data["charge_controller_configs"] = dict(
+            self._control_cache.get("charge_controller_configs", {})
+        )
+        data["gateway_control"] = self._control_cache.get("gateway_control")
         return data
+
+    def force_control_refresh(self) -> None:
+        """Refresh writable settings on the next coordinator update."""
+        self._force_control_refresh = True
 
     async def _async_block_for_port(self, did: int, port: int | None = None) -> Block:
         """Find one discovered block, optionally matching its HUB port."""
@@ -283,6 +356,7 @@ class OutbackMate3sDevice:
         block = await self._async_block_for_port(did, port)
         address = block.address + start - 1
         await self.unit.write_register(address, raw_value)
+        self.force_control_refresh()
         if verify:
             check = await self.unit.read_holding_registers(address, 1)
             if len(check) != 1 or check[0] != raw_value:
@@ -412,6 +486,7 @@ class OutbackMate3sDevice:
         address = block.address + starts[key] - 1
         values = [value.hour, value.minute]
         await self.unit.write_registers(address, values)
+        self.force_control_refresh()
         check = await self.unit.read_holding_registers(address, 2)
         if check != values:
             raise OutbackProtocolError(

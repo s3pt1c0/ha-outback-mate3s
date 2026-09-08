@@ -34,9 +34,29 @@ class OutbackMate3sCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.config_entry = entry
         self.device = OutbackMate3sDevice(unit)
+        self._consecutive_failures = 0
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:
-            return await self.device.async_read_all()
+            data = await self.device.async_read_all()
+            self._consecutive_failures = 0
+            return data
         except (ModbusError, OutbackProtocolError, TimeoutError) as err:
+            self._consecutive_failures += 1
+            # The MATE3s can occasionally miss one Modbus transaction. Preserve
+            # the last-good data for up to two polling cycles so a single missed
+            # response does not make every entity flap to unavailable. A real
+            # outage still becomes unavailable on the third consecutive failure.
+            if self.data is not None and self._consecutive_failures < 3:
+                _LOGGER.warning(
+                    "Transient MATE3s Modbus failure %s/3; keeping last data: %s",
+                    self._consecutive_failures,
+                    err,
+                )
+                return self.data
             raise UpdateFailed(str(err)) from err
+
+    async def async_refresh_control_data(self) -> None:
+        """Force an immediate refresh of writable/configuration values."""
+        self.device.force_control_refresh()
+        await self.async_request_refresh()
