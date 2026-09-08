@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.8 - 2026-09-08
+
+- Added automated GitHub Release creation for semantic HACS versioning.
+- The release workflow reads the integration version from `manifest.json` and creates the matching tag/release when missing.
+- HACS/Home Assistant can therefore show versions such as `1.1.8` instead of short Git commit hashes.
+- No telemetry or write-control behavior changed from 1.1.7.
+- Retains the 10-second real-time polling, 5-minute configuration polling, manual **Refresh Control Data** button, and all L1/L2 amperage sensors.
+
 ## 1.1.7 - 2026-09-08
 
 - Changed writable/configuration polling from approximately 1 minute to **5 minutes**.
