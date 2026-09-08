@@ -194,7 +194,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 Tracked releases start at **1.1.3**. Patch releases will continue sequentially:
 
 ```text
-1.1.3 -> 1.1.4 -> 1.1.5 -> 1.1.6 -> 1.1.7 -> 1.1.8 -> ...
+Current Version -> 1.1.8
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
