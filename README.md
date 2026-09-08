@@ -40,7 +40,7 @@ FNDC shunts in the initial test system:
 |---|---|
 | A | Inverter |
 | B | FM80 |
-| C | 2 x FM100 |
+| C | FM100 |
 
 ## OutBack SunSpec blocks
 
