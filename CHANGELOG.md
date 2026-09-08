@@ -2,6 +2,29 @@
 
 All tracked changes to this project will be documented in this file.
 
+## 1.1.5 - 2026-09-08
+
+### Added
+
+- Initial selected Modbus write/control support.
+- Radian Grid Use / Grid Drop switch.
+- Radian Inverter Mode select: Off, Search, On.
+- Radian Grid Tie enable/disable switch.
+- Writable Sell Voltage, Sell Current Limit, Grid Input Current Limit, Generator Input Current Limit, and Charger Current Limit.
+- Per-controller FM100/FM80 writable Absorb Voltage, Absorb Time, Absorb End Amps, Rebulk Voltage, Float Voltage, Bulk Current Limit, and Grid Tie Mode.
+- Grid Use Interval 1 enable plus weekday/weekend start and stop time controls.
+- Grid Use Interval 2 enable plus weekday start and stop time controls.
+- Read-back verification for R/W register changes.
+
+### Fixed
+
+- Restores the L1/L2 amperage entities that were documented for 1.1.3 but were not present in the GitHub copy that Home Assistant downloaded: Grid L1/L2 Buy Current, Grid L1/L2 Sell Current, Inverter L1/L2 Output Current, Inverter L1/L2 Charge Current, and House L1/L2 Current.
+- Carries forward the full expanded read-only telemetry prepared in 1.1.4.
+
+### Safety
+
+- Write support is limited to the explicitly approved controls above. Network, firmware, calibration, model-selection and reset registers remain unexposed.
+
 ## 1.1.4 - 2026-09-08
 
 ### Added

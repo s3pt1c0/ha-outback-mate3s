@@ -1,11 +1,11 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.1.4-green)
+![Version](https://img.shields.io/badge/version-1.1.5-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
-A native Home Assistant custom integration for monitoring **OutBack Power MATE3 / MATE3s systems directly over Modbus TCP**.
+A native Home Assistant custom integration for monitoring and controlling **OutBack Power MATE3 / MATE3s systems directly over Modbus TCP**.
 
 It communicates directly with the MATE3s using Home Assistant's shared Modbus connection API. No external Raspberry Pi, MQTT bridge, REST/JSON polling, or additional daemon is required.
 
@@ -14,9 +14,9 @@ It communicates directly with the MATE3s using Home Assistant's shared Modbus co
 - Direct Modbus TCP communication with the MATE3s
 - Uses Home Assistant's shared Modbus connection API
 - Automatic SunSpec block discovery
-- Native Home Assistant sensors
+- Native Home Assistant sensors and controls
 - Local polling
-- Read-only operation
+- Selected write/control support with read-back verification
 - No cloud dependency
 - No MQTT dependency
 - No external scripts or computers required
@@ -48,8 +48,10 @@ The integration discovers the actual register locations dynamically and reads th
 
 | Device | DID |
 |---|---:|
-| Radian Split Phase Real-Time | `64115` |
+| OutBack Gateway / Grid Use timers | `64110` |
 | Charge Controller Real-Time | `64111` |
+| Charge Controller Configuration | `64112` |
+| Radian Split Phase Real-Time | `64115` |
 | FLEXnet-DC Real-Time | `64118` |
 | OutBack System Control / AGS | `64120` |
 
@@ -93,6 +95,44 @@ Read-only sensors include current global sell/absorb/float values, charger and A
 ### Polling efficiency
 
 The large number of Home Assistant entities does **not** result in one Modbus request per entity. The coordinator reads each OutBack real-time block once per polling cycle and all entities use the same cached data.
+
+
+## Writable controls (1.1.5)
+
+Version 1.1.5 adds a deliberately limited write surface for the settings requested for the tested system. Writes use the same Home Assistant shared Modbus connection, and R/W fields are read back after each write for verification.
+
+### Radian / system controls
+
+- Grid Use switch: ON = Grid Use, OFF = Grid Drop
+- Inverter Mode select: Off / Search / On
+- Grid Tie switch
+- Sell Voltage
+- Sell Current Limit
+- Grid Input Current Limit
+- Generator Input Current Limit
+- Charger Current Limit
+
+### Charge-controller controls
+
+For each detected FM100/FM80:
+
+- Absorb Voltage
+- Absorb Time
+- Absorb End Amps
+- Rebulk Voltage
+- Float Voltage
+- Bulk Current Limit
+- Grid Tie Mode
+
+### Grid Use timers
+
+- Grid Use Interval 1 enable/disable
+- Interval 1 weekday start/stop
+- Interval 1 weekend start/stop
+- Grid Use Interval 2 enable/disable
+- Interval 2 weekday start/stop
+
+The documented OutBack map does not expose separate weekend times for Grid Use Interval 2, so they are not invented here.
 
 ## Requirements
 
@@ -143,7 +183,9 @@ The default polling interval is 10 seconds.
 
 ## Safety
 
-The integration is currently **read-only**. It does not write configuration values to the MATE3s, Radian, charge controllers, or FLEXnet-DC.
+Write support is intentionally restricted to the controls listed above. Network settings, firmware-update registers, calibration values, model selection, serial-number fields, FNDC reset registers, and other potentially destructive settings remain unexposed.
+
+Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical utility breaker; it commands the Radian to stop using the grid input and the house must then be supported by the inverter/PV/battery system as configured.
 
 ## Versioning
 
