@@ -1,63 +1,30 @@
 # OutBack MATE3s for Home Assistant
 
-![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.7%2B-blue)
+![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
 ![Version](https://img.shields.io/badge/version-1.1.3-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
 A native Home Assistant custom integration for monitoring **OutBack Power MATE3 / MATE3s systems directly over Modbus TCP**.
 
-The integration communicates directly with the MATE3s using Home Assistant's modern shared Modbus connection API.
-
-No external Raspberry Pi, MQTT bridge, REST/JSON polling, or additional daemon is required.
-
----
+It communicates directly with the MATE3s using Home Assistant's shared Modbus connection API. No external Raspberry Pi, MQTT bridge, REST/JSON polling, or additional daemon is required.
 
 ## Features
 
 - Direct Modbus TCP communication with the MATE3s
 - Uses Home Assistant's shared Modbus connection API
 - Automatic SunSpec block discovery
-- Native Home Assistant devices and sensors
+- Native Home Assistant sensors
 - Local polling
 - Read-only operation
 - No cloud dependency
 - No MQTT dependency
 - No external scripts or computers required
-- Home Assistant Energy Dashboard compatible sensors
-- Local integration branding support
+- Local integration branding support on Home Assistant 2026.3+
 
----
+## Tested system
 
-## Supported OutBack Devices
-
-Currently tested with:
-
-- **OutBack MATE3s**
-- **OutBack Radian GS8048A**
-- **OutBack FLEXnet DC (FNDC)**
-- **OutBack FM100**
-- **OutBack FM80**
-
-The integration uses OutBack vendor-specific SunSpec / Modbus blocks exposed by the MATE3s.
-
-### Currently Supported Real-Time Blocks
-
-| Device | SunSpec DID |
-|---|---:|
-| Radian Split Phase Real-Time | `64115` |
-| Charge Controller Real-Time | `64111` |
-| FLEXnet-DC Real-Time | `64118` |
-
-The integration discovers the actual register locations dynamically instead of relying on hard-coded absolute Modbus addresses.
-
-This makes the integration more tolerant of firmware changes that alter the SunSpec block layout.
-
----
-
-## Example System
-
-The integration was initially developed and tested with the following system:
+Initially developed and tested with:
 
 | HUB Port | Device |
 |---:|---|
@@ -67,19 +34,29 @@ The integration was initially developed and tested with the following system:
 | 4 | FM80 |
 | 10 | FLEXnet-DC |
 
-### FNDC Shunts
+FNDC shunts in the initial test system:
 
 | Shunt | Assignment |
 |---|---|
 | A | Inverter |
 | B | FM80 |
-| C | 2 × FM100 |
+| C | 2 x FM100 |
 
----
+## OutBack SunSpec blocks
 
-## Available Sensors
+The integration discovers the actual register locations dynamically and reads the OutBack vendor extensions used by the MATE3s:
 
-### Radian
+| Device | DID |
+|---|---:|
+| Radian Split Phase Real-Time | `64115` |
+| Charge Controller Real-Time | `64111` |
+| FLEXnet-DC Real-Time | `64118` |
+
+No fixed absolute register addresses are required.
+
+## Sensors
+
+### Radian / AC
 
 - Radian Mode
 - AC Input State
@@ -105,26 +82,28 @@ The integration was initially developed and tested with the following system:
 - House L1 Current
 - House L2 Current
 
-### Charge Controllers
+**House L1/L2 Current is derived**, because OutBack DID 64115 exposes inverter output, charge, buy, and sell current for each leg but does not expose a dedicated load-current register. The integration uses this current balance per leg:
 
-For each detected charge controller:
+```text
+House Current = Buy Current + Inverter Output Current - Sell Current - Charge Current
+```
+
+This is important in Pass Through mode, where inverter output current may be zero while the house is powered directly from the grid.
+
+### Charge controllers
+
+For every detected controller:
 
 - PV Voltage
 - Battery Voltage
 - Output Current
-- Output Power
+- Power
 - Charger State
 - Today Energy
 
-Controllers are automatically identified by their OutBack HUB port.
+Controllers on the initially tested system are labeled by HUB port as FM100 #1, FM100 #2, and FM80.
 
-Example:
-
-- FM100 #1
-- FM100 #2
-- FM80
-
-### Solar Totals
+### Solar totals
 
 - Solar Total Power
 - Solar Today Energy
@@ -140,14 +119,19 @@ Example:
 - Shunt B Current
 - Shunt C Current
 
----
-
 ## Requirements
 
-- Home Assistant **2026.7 or newer**
-- MATE3 or MATE3s with Modbus TCP enabled
-- Home Assistant must be able to reach the MATE3s over TCP port `502`
+- Home Assistant **2026.9.0 or newer**
+- MATE3 / MATE3s with Modbus TCP enabled
+- TCP connectivity from Home Assistant to the MATE3s, normally port `502`
 
+Typical configuration:
+
+```text
+Host: 172.16.35.252
+Port: 502
+Unit ID: 1
+```
 
 ## HACS installation
 
@@ -162,9 +146,60 @@ Add this repository as a custom HACS integration:
 7. Go to **Settings > Devices & services > Add integration**.
 8. Search for **OutBack MATE3s**.
 
-Example:
+## Manual installation
+
+Copy:
 
 ```text
-MATE3s IP: 10.10.1.100
-Modbus TCP Port: 502
-Unit ID: 1
+custom_components/outback_mate3s
+```
+
+to:
+
+```text
+/config/custom_components/outback_mate3s
+```
+
+Restart Home Assistant, then add **OutBack MATE3s** from **Settings > Devices & services**.
+
+## Polling
+
+The default polling interval is 10 seconds.
+
+## Safety
+
+The integration is currently **read-only**. It does not write configuration values to the MATE3s, Radian, charge controllers, or FLEXnet-DC.
+
+## Versioning
+
+Tracked releases start at **1.1.3**. Patch releases will continue sequentially:
+
+```text
+1.1.3 -> 1.1.4 -> 1.1.5 -> 1.1.6 -> ...
+```
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
+
+## Troubleshooting
+
+Check TCP connectivity from Home Assistant:
+
+```bash
+nc -vz MATE3S_IP 502
+```
+
+View integration logs:
+
+```bash
+ha core logs | grep -i outback_mate3s
+```
+
+## Disclaimer
+
+This is an independent community integration and is not affiliated with or endorsed by OutBack Power Technologies or the SunSpec Alliance.
+
+OutBack, MATE3s, Radian, FLEXnet-DC, FM80, and FM100 are trademarks or product names of their respective owners.
+
+## License
+
+MIT License.
