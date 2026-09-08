@@ -145,7 +145,7 @@ The documented OutBack map does not expose separate weekend times for Grid Use I
 Typical configuration:
 
 ```text
-Host: 172.16.35.252
+Host: 192.168.10.100
 Port: 502
 Unit ID: 1
 ```
