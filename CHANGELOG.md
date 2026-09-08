@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.3 - 2026-09-08
+
+- Removed the write/installer-password field and the automatic `1732` write-unlock behavior.
+- Relaxed setup validation so supported OutBack topologies are not required to contain Radian + charge controller + FNDC simultaneously.
+- Improved write verification with delayed retries and full-block read-back; transient `0x8000` values no longer automatically mark an otherwise accepted write as failed.
+- Added post-failure decoding of `DID 64110 Start 402` (`OutBack_Error`), including high/low-limit, invalid-write and `write while locked` diagnostics.
+- Added per-controller **Peak Amps Today** and **Peak Watts Today** sensors from the charge-controller daily data-log registers on the five-minute slow polling cadence.
+- Renamed the existing **Today Peak VOC** display name to **Maximum VOC Today** while preserving its entity unique ID.
+
 ## 1.2.2 - 2026-09-08
 
 ### Write reliability and authentication

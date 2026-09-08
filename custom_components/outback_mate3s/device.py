@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import asyncio
 import logging
 from datetime import datetime, time as dt_time, timezone
 from time import monotonic
@@ -44,21 +45,6 @@ def _decode_sunspec_string(registers: list[int]) -> str:
     for value in registers:
         raw.extend(((value >> 8) & 0xFF, value & 0xFF))
     return raw.decode("ascii", errors="ignore").replace("\x00", "").strip()
-
-
-def _encode_sunspec_string(value: str, register_count: int) -> list[int]:
-    """Encode ASCII as a null-padded SunSpec string."""
-    raw = value.encode("ascii", errors="strict")
-    max_bytes = register_count * 2
-    if len(raw) > max_bytes:
-        raise ValueError(
-            f"SunSpec string is too long ({len(raw)} bytes; max {max_bytes})"
-        )
-    raw = raw.ljust(max_bytes, b"\x00")
-    return [
-        (raw[index] << 8) | raw[index + 1]
-        for index in range(0, max_bytes, 2)
-    ]
 
 
 def _controller_type_from_model(model: str | None) -> str:
@@ -173,6 +159,25 @@ AGS_STATES = {
 }
 
 
+OUTBACK_ERROR_FLAGS = {
+    0x0001: "high limit on last write",
+    0x0002: "low limit on last write",
+    0x0004: "last write invalid",
+    0x0008: "DHCP failed",
+    0x0010: "DNS resolve failure",
+    0x0020: "SMTP authorization failed",
+    0x0040: "SMTP send failed",
+    0x0080: "FTP error",
+    0x0100: "SD-card error",
+    0x0200: "SNTP failure",
+    0x0400: "write while locked",
+    0x0800: "device firmware updating not supported",
+    0x1000: "device firmware update file not found",
+    0x2000: "device firmware update file invalid",
+    0x4000: "device firmware update failure",
+}
+
+
 class OutbackProtocolError(Exception):
     """The connected Modbus device is not the expected MATE3s map."""
 
@@ -180,9 +185,8 @@ class OutbackProtocolError(Exception):
 class OutbackMate3sDevice:
     """Read a MATE3s directly through a Home Assistant shared Modbus unit."""
 
-    def __init__(self, unit: ModbusUnit, *, write_password: str = "1732") -> None:
+    def __init__(self, unit: ModbusUnit) -> None:
         self.unit = unit
-        self.write_password = str(write_password).strip()
         self.blocks: list[Block] = []
         # Cache DID/HUB-port block locations once they have been positively
         # identified. Writes then use the known block instead of probing every
@@ -356,6 +360,27 @@ class OutbackMate3sDevice:
                     regs = await self.unit.read_holding_registers(block.address, 24)
                     if len(regs) == 24 and regs[0] == DID_CHARGE_CONTROLLER_CONFIG:
                         config = self._parse_charge_controller_config(regs)
+                        # Daily data-log maxima: Start 59 = maximum output amps,
+                        # Start 60 = maximum output watts. These are historical
+                        # "today" values, so they belong on the five-minute
+                        # configuration cadence rather than the 10-second poll.
+                        try:
+                            peak_regs = await self.unit.read_holding_registers(
+                                block.address + 58, 2
+                            )
+                            if len(peak_regs) == 2:
+                                config["peak_amps_today"] = _scaled(
+                                    peak_regs[0], config["voltage_sf"]
+                                )
+                                config["peak_watts_today"] = _scaled(
+                                    peak_regs[1], config["power_sf"]
+                                )
+                        except Exception as err:
+                            _LOGGER.debug(
+                                "Controller daily-peak read failed at %s: %s",
+                                block.address,
+                                err,
+                            )
                         # Starts 82..90 contain the 18-character controller model.
                         # Read this small range only on the slow control cadence so
                         # FM80/FM100 labels can be generated without fixed HUB ports.
@@ -428,6 +453,8 @@ class OutbackMate3sDevice:
             type_by_port[port] = controller_type
             controllers[port]["model"] = config.get("model")
             controllers[port]["controller_type"] = controller_type
+            controllers[port]["peak_amps_today"] = config.get("peak_amps_today")
+            controllers[port]["peak_watts_today"] = config.get("peak_watts_today")
 
         totals: dict[str, int] = {}
         for controller_type in type_by_port.values():
@@ -473,23 +500,85 @@ class OutbackMate3sDevice:
                 return block
         raise OutbackProtocolError(f"DID {did} for HUB port {port} was not discovered")
 
-    async def _async_unlock_writes(self) -> None:
-        """Send the MATE3s write/installer password before a write operation."""
-        password = self.write_password.strip()
-        if not password:
+    async def _async_outback_error(self) -> tuple[int | None, str]:
+        """Read and decode DID 64110 Start 402 (OutBack_Error)."""
+        try:
+            gateway = await self._async_block_for_port(DID_OUTBACK_GATEWAY)
+            regs = await self.unit.read_holding_registers(gateway.address + 401, 1)
+            if len(regs) != 1:
+                return None, "unavailable"
+            raw = regs[0]
+            return raw, _decode_flags(raw, OUTBACK_ERROR_FLAGS)
+        except Exception as err:
+            _LOGGER.debug("Unable to read OutBack_Error after write: %s", err)
+            return None, "unavailable"
+
+    async def _async_read_write_target(
+        self, block: Block, did: int, start: int
+    ) -> int | None:
+        """Read a writable field using a block read when practical."""
+        try:
+            if did == DID_CHARGE_CONTROLLER_CONFIG and 1 <= start <= 24:
+                regs = await self.unit.read_holding_registers(block.address, 24)
+                if len(regs) == 24 and regs[0] == DID_CHARGE_CONTROLLER_CONFIG:
+                    return regs[start - 1]
+            elif did == DID_OUTBACK_SYSTEM_CONTROL and 1 <= start <= 27:
+                regs = await self.unit.read_holding_registers(block.address, 27)
+                if len(regs) == 27 and regs[0] == DID_OUTBACK_SYSTEM_CONTROL:
+                    return regs[start - 1]
+            elif did == DID_OUTBACK_GATEWAY and 337 <= start <= 350:
+                regs = await self.unit.read_holding_registers(block.address + 336, 14)
+                if len(regs) == 14:
+                    return regs[start - 337]
+
+            regs = await self.unit.read_holding_registers(block.address + start - 1, 1)
+            return regs[0] if len(regs) == 1 else None
+        except Exception as err:
+            _LOGGER.debug(
+                "Write verification read failed for DID %s Start %s: %s",
+                did, start, err,
+            )
+            return None
+
+    async def _async_verify_write(
+        self, block: Block, did: int, start: int, raw_value: int
+    ) -> None:
+        """Verify an accepted write without treating transient 0x8000 as failure."""
+        last_value: int | None = None
+        saw_only_unavailable = True
+
+        for delay in (0.4, 1.0, 2.0):
+            await asyncio.sleep(delay)
+            check = await self._async_read_write_target(block, did, start)
+            last_value = check
+            if check == raw_value:
+                return
+            if check not in (None, 0x8000, 0xFFFF):
+                saw_only_unavailable = False
+
+        error_raw, error_text = await self._async_outback_error()
+        write_error_mask = 0x0001 | 0x0002 | 0x0004 | 0x0400
+        if error_raw is not None and error_raw & write_error_mask:
             raise OutbackProtocolError(
-                "MATE3s write password is not configured. "
-                "Use Reconfigure on the integration and enter the current "
-                "installer/write password."
+                f"Write failed for DID {did} Start {start}: wrote {raw_value}, "
+                f"read {last_value}; OutBack_Error=0x{error_raw:04X} ({error_text})"
             )
 
-        # DID 64110 Starts 14..21 are the 16-character write-password field.
-        # It is write-only, so there is intentionally no read-back verification.
-        gateway = await self._async_block_for_port(DID_OUTBACK_GATEWAY)
-        password_registers = _encode_sunspec_string(password, 8)
-        await self.unit.write_registers(
-            gateway.address + 14 - 1,
-            password_registers,
+        # Some MATE3s/FM combinations return 0x8000 immediately after a
+        # successful configuration write even though the controller applies it.
+        # If every verification read remained unavailable and the gateway did
+        # not report a write error, accept the Modbus write and let the forced
+        # slow refresh reconcile the final state.
+        if saw_only_unavailable:
+            _LOGGER.warning(
+                "Write accepted but read-back stayed unavailable for DID %s "
+                "Start %s; no OutBack write error was reported", did, start
+            )
+            return
+
+        raise OutbackProtocolError(
+            f"Write verification failed for DID {did} Start {start}: "
+            f"wrote {raw_value}, read {last_value}; OutBack_Error={error_text}"
         )
 
     async def _async_write_raw(
@@ -506,23 +595,10 @@ class OutbackMate3sDevice:
             raise ValueError(f"Raw register value out of range: {raw_value}")
         block = await self._async_block_for_port(did, port)
         address = block.address + start - 1
-        await self._async_unlock_writes()
         await self.unit.write_register(address, raw_value)
         self.force_control_refresh()
         if verify:
-            check = await self.unit.read_holding_registers(address, 1)
-            if len(check) != 1 or check[0] != raw_value:
-                got = check[0] if check else None
-                hint = (
-                    " (0x8000 can indicate an unavailable/rejected value; "
-                    "verify the MATE3s installer/write password)"
-                    if got == 0x8000
-                    else ""
-                )
-                raise OutbackProtocolError(
-                    f"Write verification failed for DID {did} Start {start}: "
-                    f"wrote {raw_value}, read {got}{hint}"
-                )
+            await self._async_verify_write(block, did, start, raw_value)
 
     async def _async_write_scaled(
         self,
@@ -643,14 +719,10 @@ class OutbackMate3sDevice:
         block = await self._async_block_for_port(DID_OUTBACK_GATEWAY)
         address = block.address + starts[key] - 1
         values = [value.hour, value.minute]
-        await self._async_unlock_writes()
         await self.unit.write_registers(address, values)
         self.force_control_refresh()
-        check = await self.unit.read_holding_registers(address, 2)
-        if check != values:
-            raise OutbackProtocolError(
-                f"Grid Use Interval write verification failed: wrote {values}, read {check}"
-            )
+        await self._async_verify_write(block, DID_OUTBACK_GATEWAY, starts[key], values[0])
+        await self._async_verify_write(block, DID_OUTBACK_GATEWAY, starts[key] + 1, values[1])
 
     @staticmethod
     def _parse_charge_controller_config(r: list[int]) -> dict[str, Any]:
@@ -660,6 +732,10 @@ class OutbackMate3sDevice:
         hours_sf = _s16(r[5])
         return {
             "port": r[2],
+            "voltage_sf": voltage_sf,
+            "current_sf": current_sf,
+            "hours_sf": hours_sf,
+            "power_sf": _s16(r[6]) if len(r) > 6 else 0,
             "absorb_voltage": _scaled(r[10], voltage_sf),
             "absorb_time": _scaled(r[11], hours_sf),
             "absorb_end_amps": r[12],

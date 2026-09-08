@@ -179,7 +179,9 @@ CC_SENSOR_SPECS = (
     ("today_min_battery_voltage", "Today Minimum Battery Voltage", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
     ("today_max_battery_voltage", "Today Maximum Battery Voltage", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
     ("last_voc", "Last VOC", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
-    ("today_peak_voc", "Today Peak VOC", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
+    ("today_peak_voc", "Maximum VOC Today", UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, MEAS, 1, DIAG),
+    ("peak_amps_today", "Peak Amps Today", UnitOfElectricCurrent.AMPERE, SensorDeviceClass.CURRENT, MEAS, 1, DIAG),
+    ("peak_watts_today", "Peak Watts Today", UnitOfPower.WATT, SensorDeviceClass.POWER, MEAS, 0, DIAG),
     ("today_energy_kwh", "Today Energy", UnitOfEnergy.KILO_WATT_HOUR, SensorDeviceClass.ENERGY, TOTAL_INC, 1, None),
     ("today_ah", "Today Amp Hours", "Ah", None, TOTAL_INC, 0, None),
 )

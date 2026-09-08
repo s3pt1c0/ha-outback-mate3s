@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.2.2-green)
+![Version](https://img.shields.io/badge/version-1.2.3-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -92,7 +92,7 @@ This works in Pass Through mode as well as inverter/selling modes.
 
 ### Charge controllers
 
-For every detected FM100/FM80 controller the integration includes useful realtime telemetry such as PV/battery voltage, output and array current, watts, charger state, daily min/max battery voltage, VOC/peak VOC, and today kWh/Ah. FM80/FM100 identity and numbering are generated dynamically from the controller configuration/model data rather than fixed HUB-port mappings.
+For every detected FM100/FM80 controller the integration includes useful realtime telemetry such as PV/battery voltage, output and array current, watts, charger state, daily min/max battery voltage, Last VOC, Maximum VOC Today, Peak Amps Today, Peak Watts Today, and today kWh/Ah. FM80/FM100 identity and numbering are generated dynamically from the controller configuration/model data rather than fixed HUB-port mappings.
 
 Lifetime statistics and controller-temperature entities that were judged low-value for the tested system are intentionally not exposed.
 
@@ -111,13 +111,15 @@ Low-value FNDC history/diagnostic entities removed in 1.1.10 remain intentionall
 
 Write support is deliberately limited to the controls used on the tested system. R/W fields use read-back verification.
 
-### Write authentication
+### Write verification
 
-Version **1.2.2** authenticates each Modbus write through the MATE3s
-`OutBack_Write_Password` field before changing a register. Existing installations
-default to **1732**, which is the documented default MATE3s installer password.
-If the installer password was changed, use **Reconfigure** on the Home Assistant
-integration and enter the current password. The password is not exposed as an entity.
+Version **1.2.3** does **not** require a write/installer password. Writes are sent
+directly over the local Modbus connection. Read-back verification uses delayed
+retries and full-block reads because some MATE3s/FM combinations temporarily
+return `0x8000` immediately after a successful write. If a write still cannot be
+confirmed, the integration reads `DID 64110 Start 402` (`OutBack_Error`) and
+reports write-specific errors such as high limit, low limit, invalid value, or
+`write while locked`.
 
 Charge-controller configuration blocks are also cached by HUB port after discovery,
 so a write does not need to rediscover a controller at the exact moment the setting
@@ -234,7 +236,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release 1.2.2
+Current Release -> 1.2.3
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
@@ -276,3 +278,7 @@ OutBack, MATE3s, Radian, FLEXnet-DC, FM80, and FM100 are trademarks or product n
 ## License
 
 MIT License.
+
+### Charge controller daily peak sensors
+
+Each discovered FM-series controller exposes **Peak Amps Today**, **Peak Watts Today**, and **Maximum VOC Today**. Peak Amps/Watts are refreshed on the five-minute control/data-log cadence.

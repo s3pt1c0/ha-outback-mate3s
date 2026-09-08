@@ -7,11 +7,9 @@ DOMAIN = "outback_mate3s"
 CONF_HOST = "host"
 CONF_PORT = "port"
 CONF_UNIT_ID = "unit_id"
-CONF_WRITE_PASSWORD = "write_password"
 
 DEFAULT_PORT = 502
 DEFAULT_UNIT_ID = 1
-DEFAULT_WRITE_PASSWORD = "1732"
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=10)
 CONTROL_SCAN_INTERVAL = timedelta(minutes=5)
 
