@@ -6,14 +6,22 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.components.modbus import async_get_temporary_unit
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlowWithReload
+from homeassistant.core import callback
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 from modbus_connection import ModbusError, ModbusTcpParams
 
 from .const import (
     CONF_HOST,
     CONF_PORT,
+    CONF_TEMPERATURE_UNIT,
     CONF_UNIT_ID,
     DEFAULT_PORT,
+    DEFAULT_TEMPERATURE_UNIT,
     DEFAULT_UNIT_ID,
     DID_CHARGE_CONTROLLER_REALTIME,
     DID_FNDC_REALTIME,
@@ -21,6 +29,7 @@ from .const import (
     DID_OUTBACK_SYSTEM_CONTROL,
     DID_RADIAN_SPLIT_REALTIME,
     DOMAIN,
+    TEMPERATURE_UNIT_OPTIONS,
 )
 from .device import OutbackMate3sDevice, OutbackProtocolError
 
@@ -50,6 +59,12 @@ class OutbackMate3sConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle an OutBack MATE3s config flow."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OutbackMate3sOptionsFlow:
+        """Return the options flow."""
+        return OutbackMate3sOptionsFlow()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         """Handle the initial setup step."""
@@ -104,3 +119,30 @@ class OutbackMate3sConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+
+class OutbackMate3sOptionsFlow(OptionsFlowWithReload):
+    """Integration options; saving reloads the entry automatically."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        """Choose the display unit for temperature sensors."""
+        if user_input is not None:
+            return self.async_create_entry(
+                data={**self.config_entry.options, **user_input}
+            )
+
+        current = self.config_entry.options.get(
+            CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT
+        )
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_TEMPERATURE_UNIT, default=current): SelectSelector(
+                    SelectSelectorConfig(
+                        options=list(TEMPERATURE_UNIT_OPTIONS),
+                        translation_key=CONF_TEMPERATURE_UNIT,
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(step_id="init", data_schema=schema)

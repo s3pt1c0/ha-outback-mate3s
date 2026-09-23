@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.2.8-green)
+![Version](https://img.shields.io/badge/version-1.2.9-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -98,7 +98,14 @@ Lifetime statistics and controller-temperature entities that were judged low-val
 
 ### Temperature units
 
-All temperature entities exposed by this integration use **degrees Fahrenheit (°F)** as their native/default unit.
+OutBack reports every temperature register in **degrees Celsius** (Radian module temperatures in DID 64115, charge-controller temperatures in DID 64111, FNDC battery temperature in DID 64118). Since 1.2.9 the entities publish Celsius as their native unit and Home Assistant converts for display.
+
+Choose the display unit in **Settings > Devices & services > OutBack MATE3s > Configure**:
+
+- **Automatic** (default): follows the Home Assistant unit system.
+- **Celsius (°C)** or **Fahrenheit (°F)**: applied to every temperature sensor of this integration through the standard per-entity unit setting.
+
+Saving the option reloads the integration. Switching back to Automatic removes only the unit this integration applied; a unit picked by hand in an entity's settings is kept. Long-term statistics keep their original unit, and Home Assistant converts between °C and °F.
 
 
 ### Solar totals
@@ -118,7 +125,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.2.8** does **not** require a write/installer password. Writes are sent
+Version **1.2.9** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -244,7 +251,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.2.8
+Current Release -> 1.2.9
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

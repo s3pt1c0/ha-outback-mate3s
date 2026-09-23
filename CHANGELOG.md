@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.9 - 2026-09-23
+
+### Temperature units
+
+- Added an integration option (**Configure**) to choose the temperature display unit: **Automatic** (default, Home Assistant unit system), **Celsius (°C)** or **Fahrenheit (°F)**. Saving the option reloads the integration.
+- Temperature entities now publish **degrees Celsius** as their native unit, matching the OutBack map (DID 64115, 64111 and 64118 temperature registers are documented in degrees C). The integration no longer converts to Fahrenheit itself; Home Assistant handles display conversion. This replaces the fixed native °F introduced in 1.2.4.
+- The chosen unit is applied through the entity registry's standard per-entity unit setting. Returning to Automatic removes only the unit this integration applied, so a unit picked by hand in an entity's settings is preserved.
+- With Automatic selected, upgrading does not change the displayed unit or existing long-term statistics.
+
 ## 1.2.8 - 2026-09-23
 
 ### Polling reliability

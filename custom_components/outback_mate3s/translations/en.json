@@ -19,5 +19,28 @@
     "abort": {
       "already_configured": "This MATE3s is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "OutBack MATE3s options",
+        "description": "OutBack reports every temperature in degrees Celsius. Choose the unit Home Assistant uses to display this integration's temperature sensors.",
+        "data": {
+          "temperature_unit": "Temperature unit"
+        },
+        "data_description": {
+          "temperature_unit": "Automatic follows the Home Assistant unit system. Celsius or Fahrenheit applies to every temperature sensor of this integration."
+        }
+      }
+    }
+  },
+  "selector": {
+    "temperature_unit": {
+      "options": {
+        "auto": "Automatic (Home Assistant unit system)",
+        "celsius": "Celsius (°C)",
+        "fahrenheit": "Fahrenheit (°F)"
+      }
+    }
   }
 }

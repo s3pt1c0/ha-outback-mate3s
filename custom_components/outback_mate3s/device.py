@@ -42,18 +42,11 @@ def _scaled(value: int, sf: int, *, signed: bool = False) -> float:
     return raw * (10**sf)
 
 
-def _c_to_f(value: float | int | None) -> float | None:
-    """Convert a Celsius value reported by OutBack to Fahrenheit."""
-    if value is None:
-        return None
-    return (float(value) * 9.0 / 5.0) + 32.0
-
-
-def _temperature_f(raw: int, sf: int = 0) -> float | None:
-    """Decode an OutBack temperature register and return Fahrenheit."""
+def _temperature_c(raw: int, sf: int = 0) -> float | None:
+    """Decode an OutBack temperature register (int16, degrees C)."""
     if raw in (0x7FFF, 0x8000, 0xFFFF):
         return None
-    return _c_to_f(_scaled(raw, sf, signed=True))
+    return float(_scaled(raw, sf, signed=True))
 
 
 def _decode_sunspec_string(registers: list[int]) -> str:
@@ -939,13 +932,13 @@ class OutbackMate3sDevice:
             "temp_comp_target_voltage": _scaled(r[25], dc_voltage_sf, signed=True),
             "aux_output_state": "On" if r[26] else "Off",
             "aux_relay_state": "On" if r[27] else "Off",
-            "left_transformer_temperature": _temperature_f(r[28]),
-            "left_capacitor_temperature": _temperature_f(r[29]),
-            "left_fet_temperature": _temperature_f(r[30]),
-            "right_transformer_temperature": _temperature_f(r[31]),
-            "right_capacitor_temperature": _temperature_f(r[32]),
-            "right_fet_temperature": _temperature_f(r[33]),
-            "battery_temperature": _temperature_f(r[34]),
+            "left_transformer_temperature": _temperature_c(r[28]),
+            "left_capacitor_temperature": _temperature_c(r[29]),
+            "left_fet_temperature": _temperature_c(r[30]),
+            "right_transformer_temperature": _temperature_c(r[31]),
+            "right_capacitor_temperature": _temperature_c(r[32]),
+            "right_fet_temperature": _temperature_c(r[33]),
+            "battery_temperature": _temperature_c(r[34]),
             "frequency": _scaled(r[36], ac_freq_sf, signed=True),
             "selected_input_voltage": _scaled(r[37], ac_voltage_sf, signed=True),
             "minimum_input_voltage": _scaled(r[39], ac_voltage_sf, signed=True),
@@ -1001,7 +994,7 @@ class OutbackMate3sDevice:
         def temp(index: int) -> float | None:
             if len(r) <= index or r[index] in (0x7FFF, 0x8000, 0xFFFF):
                 return None
-            return _temperature_f(r[index], temp_sf)
+            return _temperature_c(r[index], temp_sf)
 
         return {
             "port": port,
@@ -1049,7 +1042,7 @@ class OutbackMate3sDevice:
             "shunt_c_current": _scaled(r[10], current_sf, signed=True),
             "battery_voltage": _scaled(r[11], voltage_sf),
             "battery_current": _scaled(r[12], current_sf, signed=True),
-            "battery_temperature": _temperature_f(r[13]),
+            "battery_temperature": _temperature_c(r[13]),
             "status_flags_raw": status_flags_raw,
             "status_flags": _decode_flags(status_flags_raw, FNDC_STATUS_FLAGS),
             "shunt_a_accumulated_ah": _s16(r[15]),

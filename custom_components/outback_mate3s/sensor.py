@@ -22,12 +22,15 @@ from homeassistant.const import (
     UnitOfPower,
     UnitOfTemperature,
 )
+from homeassistant.core import callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import OutbackConfigEntry
-from .const import DOMAIN
+from .const import CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT, DOMAIN
 from .coordinator import OutbackMate3sCoordinator
+from .units import plan_registry_updates
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -110,12 +113,12 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "today_l2_output_energy", "Today L2 Output Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_charger_energy", "Today Charger Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
 
-    _desc("radian", "left_transformer_temperature", "Left Transformer Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "left_capacitor_temperature", "Left Capacitor Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "left_fet_temperature", "Left FET Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "right_transformer_temperature", "Right Transformer Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "right_capacitor_temperature", "Right Capacitor Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
-    _desc("radian", "right_fet_temperature", "Right FET Temperature", unit=UnitOfTemperature.FAHRENHEIT, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "left_transformer_temperature", "Left Transformer Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "left_capacitor_temperature", "Left Capacitor Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "left_fet_temperature", "Left FET Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "right_transformer_temperature", "Right Transformer Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "right_capacitor_temperature", "Right Capacitor Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "right_fet_temperature", "Right FET Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
 )
 
 FNDC_SENSORS: tuple[OutbackSensorDescription, ...] = (
@@ -241,7 +244,31 @@ class _OutbackBase(CoordinatorEntity[OutbackMate3sCoordinator]):
         )
 
 
-class OutbackSensor(_OutbackBase, SensorEntity):
+class _TemperatureUnitMixin:
+    """Apply the integration's temperature-unit option to this entity."""
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()  # type: ignore[misc]
+        if self.device_class == SensorDeviceClass.TEMPERATURE:  # type: ignore[attr-defined]
+            self._async_apply_temperature_unit()
+
+    @callback
+    def _async_apply_temperature_unit(self) -> None:
+        entry = self.registry_entry  # type: ignore[attr-defined]
+        if entry is None:
+            return
+        choice = self.coordinator.config_entry.options.get(  # type: ignore[attr-defined]
+            CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT
+        )
+        updates = plan_registry_updates(entry.options, choice, DOMAIN)
+        if not updates:
+            return
+        registry = er.async_get(self.hass)  # type: ignore[attr-defined]
+        for options_domain, options in updates.items():
+            registry.async_update_entity_options(entry.entity_id, options_domain, options)
+
+
+class OutbackSensor(_TemperatureUnitMixin, _OutbackBase, SensorEntity):
     """Static Radian, FNDC or system sensor."""
 
     entity_description: OutbackSensorDescription
@@ -259,7 +286,7 @@ class OutbackSensor(_OutbackBase, SensorEntity):
             return None
 
 
-class OutbackRadianSensor(_OutbackBase, SensorEntity):
+class OutbackRadianSensor(_TemperatureUnitMixin, _OutbackBase, SensorEntity):
     """One per-Radian sensor for stacked/multi-inverter systems."""
 
     entity_description: OutbackSensorDescription
