@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.2.7-green)
+![Version](https://img.shields.io/badge/version-1.2.8-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -118,7 +118,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.2.7** does **not** require a write/installer password. Writes are sent
+Version **1.2.8** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -244,7 +244,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.2.7
+Current Release -> 1.2.8
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
@@ -275,6 +275,18 @@ View integration logs:
 
 ```bash
 ha core logs | grep -i outback_mate3s
+```
+
+### `0x8000` in a block DID
+
+Every OutBack block starts with a fixed DID (for example `64111` for a charge controller). When the MATE3s briefly has no data for a HUB device it can return `0x8000` (32768) in that register instead. Since 1.2.8 the integration retries the block, reuses that device's last-good data for up to six polls (about one minute), and only fails the update if the block stays unavailable. A different, real DID in that position triggers a new SunSpec discovery on the next poll.
+
+To see these events, enable debug logging:
+
+```yaml
+logger:
+  logs:
+    custom_components.outback_mate3s: debug
 ```
 
 ## Disclaimer

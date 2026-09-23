@@ -7,7 +7,7 @@ import asyncio
 import logging
 from datetime import datetime, time as dt_time, timezone
 from time import monotonic
-from typing import Any
+from typing import Any, Callable
 
 from modbus_connection import ModbusUnit
 
@@ -15,6 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 from .const import (
+    BLOCK_RETRY_DELAY,
     CONTROL_SCAN_INTERVAL,
     DID_CHARGE_CONTROLLER_CONFIG,
     DID_CHARGE_CONTROLLER_REALTIME,
@@ -22,9 +23,11 @@ from .const import (
     DID_OUTBACK_GATEWAY,
     DID_OUTBACK_SYSTEM_CONTROL,
     DID_RADIAN_SPLIT_REALTIME,
+    MAX_STALE_BLOCK_POLLS,
     SUNSPEC_BASE,
     SUNSPEC_END_DID,
     SUNSPEC_SIGNATURE,
+    SUNSPEC_UNAVAILABLE,
 )
 
 
@@ -208,6 +211,10 @@ class OutbackProtocolError(Exception):
     """The connected Modbus device is not the expected MATE3s map."""
 
 
+class OutbackBlockUnavailable(OutbackProtocolError):
+    """A discovered block returned a SunSpec placeholder instead of its DID."""
+
+
 class OutbackMate3sDevice:
     """Read a MATE3s directly through a Home Assistant shared Modbus unit."""
 
@@ -228,6 +235,11 @@ class OutbackMate3sDevice:
         }
         self._last_control_refresh: float | None = None
         self._force_control_refresh = True
+        # Last-good parsed real-time data and consecutive unavailable polls,
+        # keyed by block address (the HUB port is unreadable while the block
+        # returns placeholders).
+        self._realtime_cache: dict[int, dict[str, Any]] = {}
+        self._block_misses: dict[int, int] = {}
 
     async def async_discover(self) -> list[Block]:
         """Discover the SunSpec chain without relying on pysunspec2."""
@@ -278,11 +290,76 @@ class OutbackMate3sDevice:
             raise OutbackProtocolError(
                 f"Short read for DID {block.did} at {block.address}"
             )
+        if regs[0] in SUNSPEC_UNAVAILABLE:
+            raise OutbackBlockUnavailable(
+                f"DID {block.did} at {block.address} returned 0x{regs[0]:04X} "
+                "(no data from the gateway for this block)"
+            )
         if regs[0] != block.did:
+            # A real, different DID means the SunSpec map moved (for example
+            # after a MATE3s reboot). Drop the topology so the next poll runs
+            # discovery again instead of failing forever.
+            self._reset_discovery()
             raise OutbackProtocolError(
-                f"DID changed at {block.address}: expected {block.did}, got {regs[0]}"
+                f"DID changed at {block.address}: expected {block.did}, got {regs[0]}; "
+                "rediscovering SunSpec blocks"
             )
         return regs
+
+    def _reset_discovery(self) -> None:
+        """Forget discovered block locations; the next poll rediscovers."""
+        self.blocks = []
+        self._block_by_port.clear()
+        self._realtime_cache.clear()
+        self._block_misses.clear()
+
+    async def _async_read_realtime(
+        self, block: Block, parser: Callable[[list[int]], dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Read one real-time block, tolerating short placeholder bursts.
+
+        A block whose DID reads 0x8000/0xFFFF is retried (once normally, three
+        times when no last-good data exists yet, e.g. at startup). If it is
+        still unavailable, its last-good data is reused for up to
+        MAX_STALE_BLOCK_POLLS polls so one controller does not fail the whole
+        update. Energy totals therefore never drop a controller for one poll.
+        """
+        cached = self._realtime_cache.get(block.address)
+        attempts = 2 if cached is not None else 4
+        regs: list[int] | None = None
+        last_err: OutbackBlockUnavailable | None = None
+        for attempt in range(attempts):
+            try:
+                regs = await self._read_block(block)
+                break
+            except OutbackBlockUnavailable as err:
+                last_err = err
+                if attempt + 1 < attempts:
+                    await asyncio.sleep(BLOCK_RETRY_DELAY)
+
+        if regs is None:
+            err = last_err
+            misses = self._block_misses.get(block.address, 0) + 1
+            self._block_misses[block.address] = misses
+            if cached is None or misses > MAX_STALE_BLOCK_POLLS:
+                raise OutbackBlockUnavailable(
+                    f"{err}; unavailable for {misses} consecutive polls"
+                ) from err
+            _LOGGER.debug(
+                "%s; reusing last-good data (%s/%s)",
+                err, misses, MAX_STALE_BLOCK_POLLS,
+            )
+            return cached
+
+        misses = self._block_misses.pop(block.address, 0)
+        if misses:
+            _LOGGER.debug(
+                "DID %s at %s recovered after %s unavailable polls",
+                block.did, block.address, misses,
+            )
+        parsed = parser(regs)
+        self._realtime_cache[block.address] = parsed
+        return parsed
 
     async def async_read_all(self) -> dict[str, Any]:
         """Read real-time data and periodically refresh writable settings."""
@@ -311,7 +388,7 @@ class OutbackMate3sDevice:
         # Real-time blocks remain on the normal 10-second coordinator cadence.
         radian_blocks = self._blocks(DID_RADIAN_SPLIT_REALTIME)
         for block in radian_blocks:
-            radian = self._parse_radian(await self._read_block(block))
+            radian = await self._async_read_realtime(block, self._parse_radian)
             data["radians"][radian["port"]] = radian
             self._block_by_port[
                 (DID_RADIAN_SPLIT_REALTIME, int(radian["port"]))
@@ -333,7 +410,9 @@ class OutbackMate3sDevice:
             data["radian"] = data["radians"][radian_ports[0]]
 
         for block in self._blocks(DID_CHARGE_CONTROLLER_REALTIME):
-            cc = self._parse_charge_controller(await self._read_block(block))
+            cc = await self._async_read_realtime(
+                block, self._parse_charge_controller
+            )
             data["charge_controllers"][cc["port"]] = cc
             self._block_by_port[
                 (DID_CHARGE_CONTROLLER_REALTIME, int(cc["port"]))
@@ -341,8 +420,8 @@ class OutbackMate3sDevice:
 
         fndc_blocks = self._blocks(DID_FNDC_REALTIME)
         if fndc_blocks:
-            data["fndc"] = self._parse_fndc(
-                await self._read_block(fndc_blocks[0])
+            data["fndc"] = await self._async_read_realtime(
+                fndc_blocks[0], self._parse_fndc
             )
             self._block_by_port[
                 (DID_FNDC_REALTIME, int(data["fndc"]["port"]))

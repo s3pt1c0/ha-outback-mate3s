@@ -16,6 +16,13 @@ CONTROL_SCAN_INTERVAL = timedelta(minutes=5)
 SUNSPEC_BASE = 40000
 SUNSPEC_SIGNATURE = (0x5375, 0x6E53)
 SUNSPEC_END_DID = 65535
+# SunSpec "not implemented" markers. A fixed DID register (Start 1) returning
+# one of these means the gateway had no data for that block at that instant.
+SUNSPEC_UNAVAILABLE = (0x8000, 0xFFFF)
+# Real-time polls a block may reuse its last-good data while its DID reads as
+# unavailable. 6 x 10 s = about one minute before the poll is failed.
+MAX_STALE_BLOCK_POLLS = 6
+BLOCK_RETRY_DELAY = 0.5
 
 DID_OUTBACK_GATEWAY = 64110
 DID_CHARGE_CONTROLLER_REALTIME = 64111

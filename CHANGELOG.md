@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.8 - 2026-09-23
+
+### Polling reliability
+
+- Fixed repeated `Transient MATE3s Modbus failure ... DID changed at <address>: expected 64111, got 32768` warnings. `32768` is `0x8000`, a SunSpec placeholder, returned in the fixed DID register (Start 1) when the MATE3s briefly has no data for a HUB device; it is not a map change.
+- Real-time blocks (DID 64115 Radian, DID 64111 charge controller, DID 64118 FNDC) are now read individually with placeholder handling: one retry after 0.5 s (three retries when no last-good data exists yet, such as at startup).
+- If a block is still unavailable, that device's last-good data is reused for up to 6 polls (about one minute) instead of failing the whole update. **Solar Today Energy** and other totals no longer lose a controller for a single poll.
+- A block that stays unavailable longer than that still fails the update, so the existing 3-strike coordinator logic marks entities unavailable during a real outage.
+- A real, different DID at a discovered address (for example after a MATE3s reboot changes the SunSpec layout) now clears the cached topology and runs SunSpec discovery again on the next poll instead of failing indefinitely.
+- Placeholder events are logged at debug level; enable `custom_components.outback_mate3s: debug` to see them.
+
 ## 1.2.7 - 2026-09-23
 
 ### Radian / system controls
