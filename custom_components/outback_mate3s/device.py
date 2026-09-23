@@ -172,6 +172,18 @@ AGS_STATES = {
     5: "Awaiting AC",
 }
 
+# DID 64110 Start 419 (OutBack_Auto_reboot): OPTICS auto reboot interval.
+# 0=Disable, 1=24, 2=20, 3=16, 4=12, 5=8, 6=4 (hours).
+AUTO_REBOOT_OPTIONS = {
+    0: "Disabled",
+    1: "Every 24 hours",
+    2: "Every 20 hours",
+    3: "Every 16 hours",
+    4: "Every 12 hours",
+    5: "Every 8 hours",
+    6: "Every 4 hours",
+}
+
 
 OUTBACK_ERROR_FLAGS = {
     0x0001: "high limit on last write",
@@ -427,17 +439,30 @@ class OutbackMate3sDevice:
 
             gateway_blocks = self._blocks(DID_OUTBACK_GATEWAY)
             if gateway_blocks:
+                # Keep last-good values per section so one failed read does not
+                # discard the other section's values.
+                gateway = dict(self._control_cache.get("gateway_control") or {})
                 try:
-                    # Grid Use Interval section only: Starts 337..350.
+                    # Grid Use Interval section: Starts 337..350.
                     regs = await self.unit.read_holding_registers(
                         gateway_blocks[0].address + 336, 14
                     )
                     if len(regs) == 14:
-                        self._control_cache["gateway_control"] = (
-                            self._parse_gateway_control(regs)
-                        )
+                        gateway.update(self._parse_gateway_control(regs))
                 except Exception as err:  # optional control telemetry
                     _LOGGER.warning("Grid Use Interval refresh failed: %s", err)
+                try:
+                    # OutBack_Auto_reboot: Start 419 (uint16, enumerated).
+                    regs = await self.unit.read_holding_registers(
+                        gateway_blocks[0].address + 418, 1
+                    )
+                    if len(regs) == 1:
+                        gateway["auto_reboot_raw"] = regs[0]
+                        gateway["auto_reboot"] = AUTO_REBOOT_OPTIONS.get(regs[0])
+                except Exception as err:  # optional control telemetry
+                    _LOGGER.warning("Auto Reboot refresh failed: %s", err)
+                if gateway:
+                    self._control_cache["gateway_control"] = gateway
 
             self._force_control_refresh = False
             self._last_control_refresh = now
@@ -737,6 +762,14 @@ class OutbackMate3sDevice:
         self.force_control_refresh()
         await self._async_verify_write(block, DID_OUTBACK_GATEWAY, starts[key], values[0])
         await self._async_verify_write(block, DID_OUTBACK_GATEWAY, starts[key] + 1, values[1])
+
+    async def async_set_auto_reboot(self, option: str) -> None:
+        """Write DID 64110 Start 419 (OutBack_Auto_reboot)."""
+        values = {label: raw for raw, label in AUTO_REBOOT_OPTIONS.items()}
+        if option not in values:
+            raise ValueError(f"Unsupported auto reboot option: {option}")
+        # R/W register: use normal read-back verification.
+        await self._async_write_raw(DID_OUTBACK_GATEWAY, 419, values[option])
 
     @staticmethod
     def _parse_charge_controller_config(r: list[int]) -> dict[str, Any]:

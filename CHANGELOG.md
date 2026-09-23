@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.6 - 2026-09-22
+
+### MATE3s gateway settings
+
+- Added **MATE3s Auto Reboot** select (configuration entity) for `DID 64110 Start 419` (`OutBack_Auto_reboot`, OPTICS auto reboot): 0=Disabled, 1=24 h, 2=20 h, 3=16 h, 4=12 h, 5=8 h, 6=4 h.
+- The value is read on the five-minute control cadence (and after every write) and written with standard read-back verification and `OutBack_Error` decoding.
+- DID 64110 control refresh now keeps last-good values per section, so a failed Grid Use Interval read no longer discards the Auto Reboot value and vice versa.
+
 ## 1.2.4 - 2026-09-08
 
 - Changed every exposed temperature entity to use **degrees Fahrenheit (°F)** as its native/default unit and convert OutBack Celsius telemetry before publishing to Home Assistant.

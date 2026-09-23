@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.2.4-green)
+![Version](https://img.shields.io/badge/version-1.2.6-green)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
 
@@ -118,7 +118,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.2.4** does **not** require a write/installer password. Writes are sent
+Version **1.2.6** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -164,6 +164,10 @@ For each detected FM100/FM80:
 - Interval 2 weekday start/stop
 
 The documented OutBack map does not expose separate weekend times for Grid Use Interval 2, so they are not invented here.
+
+### MATE3s gateway settings
+
+- MATE3s Auto Reboot select (DID 64110 Start 419, `OutBack_Auto_reboot`): Disabled / Every 24, 20, 16, 12, 8 or 4 hours. Raw values 0-6 per the OutBack map. Refreshed on the five-minute control cadence.
 
 ## Installation Instructions (3 Steps)
 
@@ -241,7 +245,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.2.4
+Current Release -> 1.2.6
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
