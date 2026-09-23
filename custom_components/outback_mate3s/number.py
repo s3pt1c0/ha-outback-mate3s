@@ -7,6 +7,7 @@ from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.const import UnitOfElectricCurrent, UnitOfElectricPotential
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -27,11 +28,14 @@ class SystemNumberSpec:
 
 SYSTEM_NUMBERS = (
     SystemNumberSpec("sell_voltage", "Sell Voltage", UnitOfElectricPotential.VOLT, 44.0, 64.0, 0.1),
-    SystemNumberSpec("sell_current_limit", "Sell Current Limit", UnitOfElectricCurrent.AMPERE, 0.0, 30.0, 0.1),
     SystemNumberSpec("grid_input_current_limit", "Grid Input Current Limit", UnitOfElectricCurrent.AMPERE, 5.0, 55.0, 0.1),
     SystemNumberSpec("generator_input_current_limit", "Generator Input Current Limit", UnitOfElectricCurrent.AMPERE, 5.0, 55.0, 0.1),
     SystemNumberSpec("charger_current_limit", "Charger Current Limit", UnitOfElectricCurrent.AMPERE, 0.0, 30.0, 0.1),
 )
+
+# System numbers removed from the integration. Their registry entries are
+# deleted on setup so existing installations do not keep orphaned entities.
+REMOVED_SYSTEM_NUMBERS = ("sell_current_limit",)
 
 
 @dataclass(frozen=True)
@@ -142,6 +146,14 @@ async def async_setup_entry(hass, entry: OutbackConfigEntry, async_add_entities)
     """Set up writable OutBack number entities."""
     coordinator = entry.runtime_data
     entities: list[NumberEntity] = []
+
+    registry = er.async_get(hass)
+    for field in REMOVED_SYSTEM_NUMBERS:
+        entity_id = registry.async_get_entity_id(
+            "number", DOMAIN, f"{entry.entry_id}_{field}"
+        )
+        if entity_id is not None:
+            registry.async_remove(entity_id)
 
     if coordinator.data.get("system_control") is not None:
         entities.extend(OutbackSystemNumber(coordinator, spec) for spec in SYSTEM_NUMBERS)

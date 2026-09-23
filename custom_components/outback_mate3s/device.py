@@ -663,7 +663,6 @@ class OutbackMate3sDevice:
         """Set one approved Radian/System Control numeric setting."""
         mapping = {
             "sell_voltage": (12, 3),
-            "sell_current_limit": (13, 4),
             "charger_current_limit": (18, 4),
             "grid_input_current_limit": (19, 4),
             "generator_input_current_limit": (20, 4),

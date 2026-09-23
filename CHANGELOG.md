@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.7 - 2026-09-23
+
+### Radian / system controls
+
+- Removed the writable **Sell Current Limit** number entity (`DID 64120 Start 13`, `OB_Set_Radian_Inverter_Sell_Current_Limit`); it is not used on the tested system.
+- Removed `sell_current_limit` from the approved System Control write map, so the integration no longer writes DID 64120 Start 13.
+- Existing installations: the orphaned `number` entity is removed from the Home Assistant entity registry automatically when the integration loads.
+- The read-only **Radian Sell Current Limit** diagnostic sensor is unchanged.
+
 ## 1.2.6 - 2026-09-22
 
 ### MATE3s gateway settings
