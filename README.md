@@ -1,10 +1,12 @@
 # OutBack MATE3s for Home Assistant
 
-![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)
-![Version](https://img.shields.io/badge/version-1.2.9-green)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)](https://www.home-assistant.io/)
+[![Version](https://img.shields.io/badge/version-1.2.9-green)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
-![GitHub total Downloads](https://img.shields.io/github/downloads/s3pt1c0/ha-outback-mate3s/total?style=flat-square)
+[![GitHub total Downloads](https://img.shields.io/github/downloads/s3pt1c0/ha-outback-mate3s/total?style=flat-square)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
+[![GitHub stars](https://img.shields.io/github/stars/s3pt1c0/ha-outback-mate3s?style=flat-square)](https://github.com/s3pt1c0/ha-outback-mate3s/stargazers)
+[![GitHub issues](https://img.shields.io/github/issues/s3pt1c0/ha-outback-mate3s?style=flat-square)](https://github.com/s3pt1c0/ha-outback-mate3s/issues)
 
 A native Home Assistant custom integration for monitoring and controlling **OutBack Power MATE3 / MATE3s systems directly over Modbus TCP**.
 
