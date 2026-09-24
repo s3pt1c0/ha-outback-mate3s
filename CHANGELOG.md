@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.1 - 2026-09-24
+
+### Validation
+
+- Sorted `manifest.json` keys as hassfest requires (`domain`, `name`, then alphabetical: `integration_type`, `iot_class`, `issue_tracker`). Fixes the failing **Hassfest validation** workflow.
+
+### Branding
+
+- Fixed the integration logo in light themes. `brand/logo.png` and `brand/logo@2x.png` now use the color logo with black **POWER**; `brand/dark_logo.png` and `brand/dark_logo@2x.png` use the white **POWER** version. Previously both variants used the white version, so **POWER** was invisible on a light background. Home Assistant picks the `dark_` files automatically in dark themes.
+- Icons (`icon.png`, `dark_icon.png` and `@2x`) are unchanged; the red mark works on both themes.
+
 ## 1.3.0 - 2026-09-24
 
 ### Energy dashboard
