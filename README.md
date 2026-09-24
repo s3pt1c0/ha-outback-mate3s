@@ -128,13 +128,34 @@ Includes SOC, battery voltage/current, input/output/net current and power, daily
 
 Low-value FNDC history/diagnostic entities removed in 1.1.10 remain intentionally excluded.
 
+## Energy dashboard
+
+These sensors match what **Settings > Dashboards > Energy** asks for. OutBack publishes grid energy only as **daily** counters (DID 64115 Starts 44-54); they use `total_increasing`, so Home Assistant treats the daily reset as a meter reset and keeps accumulating in its long-term statistics.
+
+| Energy dashboard field | Sensor | OutBack registers |
+|---|---|---|
+| Energy imported from grid | **Grid Import Today Energy** | DID 64115 Start 44 + Start 49 (AC1 L1/L2 Buy kWh) |
+| Energy exported to grid | **Grid Export Today Energy** | DID 64115 Start 46 + Start 51 (AC1 L1/L2 Sell kWh) |
+| Grid power, type **Standard** | **Grid Power** (W, + import / - export) | DID 64115 Start 56 Buy kW - Start 57 Sell kW |
+| Grid power, type **Two sensors** | **Grid Buy Power** / **Grid Sell Power** | DID 64115 Start 56 / Start 57 |
+| Solar production energy | **Solar Today Energy** | DID 64111 Start 19 (CC Today kWh), all controllers |
+| Solar production power | **Solar Total Power** | DID 64111 Start 14 (CC Watts), all controllers |
+
+Grid power resolution is 0.1 kW, the resolution of the OutBack kW registers (`GS_Split_kWh_SF = -1`).
+
+On stacked multi-Radian systems each Radian gets its own grid sensors; add each one as a separate grid source.
+
+Totals are never partial: if a register returns a SunSpec placeholder (`0x8000`) or a controller has no data, the total is `unknown` for that poll instead of a lower value that the Energy dashboard would count as a meter reset.
+
+If a sensor does not appear in the Energy dashboard pickers, check that the recorder is not excluding it (`recorder:` `exclude`/`include` in `configuration.yaml`) and that it has `state_class` and `device_class` attributes in **Developer tools > States**.
+
 ## Writable controls
 
 Write support is deliberately limited to the controls used on the tested system. R/W fields use read-back verification.
 
 ### Write verification
 
-Version **1.2.9** does **not** require a write/installer password. Writes are sent
+Version **1.3.0** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -260,7 +281,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.2.9
+Current Release -> 1.3.0
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

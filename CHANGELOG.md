@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 - 2026-09-24
+
+### Energy dashboard
+
+- Added **Grid Import Today Energy** (DID 64115 Start 44 + Start 49, AC1 L1/L2 Buy kWh) and **Grid Export Today Energy** (Start 46 + Start 51, AC1 L1/L2 Sell kWh) so each Energy dashboard grid field takes a single sensor. `total_increasing`, kWh.
+- Added **Grid Power** (W) for the Energy dashboard **Standard** grid power type: `Buy kW (Start 56) - Sell kW (Start 57)`, positive while importing and negative while exporting. The existing **Grid Buy Power** and **Grid Sell Power** remain for the **Two sensors** type.
+- On stacked multi-Radian systems the new sensors are created per Radian, like the other Radian sensors; no cross-Radian totals are invented.
+
+### Statistics protection
+
+- Radian daily kWh (Starts 44-54) and kW (Starts 55-60) registers and charge-controller Watts (DID 64111 Start 14) and Today kWh (Start 19) now return `unknown` for SunSpec placeholders (`0x7FFF`, `0x8000`, `0xFFFF`). Previously `0x8000` decoded as 3276.8 kWh, which a `total_increasing` sensor would record as real energy.
+- **Solar Total Power** and **Solar Today Energy** are `unknown` when any controller value is missing, instead of publishing a partial sum that the Energy dashboard would treat as a meter reset and double-count.
+
 ## 1.2.9 - 2026-09-23
 
 ### Temperature units
