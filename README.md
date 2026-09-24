@@ -1,7 +1,7 @@
 # OutBack MATE3s for Home Assistant
 
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)](https://www.home-assistant.io/)
-[![Version](https://img.shields.io/badge/version-1.2.9-green)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/s3pt1c0/ha-outback-mate3s?style=flat-square&label=Version)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub total Downloads](https://img.shields.io/github/downloads/s3pt1c0/ha-outback-mate3s/total?style=flat-square)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
@@ -11,6 +11,12 @@
 A native Home Assistant custom integration for monitoring and controlling **OutBack Power MATE3 / MATE3s systems directly over Modbus TCP**.
 
 It communicates directly with the MATE3s using Home Assistant's shared Modbus connection API. No external Raspberry Pi, MQTT bridge, REST/JSON polling, or additional daemon is required.
+
+### ⭐ Support the project
+
+If **OutBack MATE3s for Home Assistant** is useful to you, please consider giving the repository a star. It helps other OutBack and Home Assistant users discover the integration.
+
+[![Star this repository](https://img.shields.io/github/stars/s3pt1c0/ha-outback-mate3s?style=for-the-badge&logo=github&label=Star%20this%20repo)](https://github.com/s3pt1c0/ha-outback-mate3s)
 
 ## Features
 
