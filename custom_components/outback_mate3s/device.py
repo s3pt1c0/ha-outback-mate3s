@@ -42,6 +42,25 @@ def _scaled(value: int, sf: int, *, signed: bool = False) -> float:
     return raw * (10**sf)
 
 
+def _meter(raw: int, sf: int = 0) -> float | None:
+    """Decode an unsigned energy/power register.
+
+    SunSpec placeholders (0x7FFF/0x8000/0xFFFF) return None instead of being
+    scaled into impossible values such as 3276.8 kWh, which would corrupt
+    Home Assistant energy statistics.
+    """
+    if raw in (0x7FFF, 0x8000, 0xFFFF):
+        return None
+    return _scaled(raw, sf)
+
+
+def _sum_or_none(*values: float | None) -> float | None:
+    """Sum values, or None if any is missing (never a partial total)."""
+    if any(value is None for value in values):
+        return None
+    return round(sum(values), 3)  # type: ignore[arg-type]
+
+
 def _temperature_c(raw: int, sf: int = 0) -> float | None:
     """Decode an OutBack temperature register (int16, degrees C)."""
     if raw in (0x7FFF, 0x8000, 0xFFFF):
@@ -914,6 +933,19 @@ class OutbackMate3sDevice:
             l2_buy_current + l2_output_current - l2_sell_current - l2_charge_current
         )
 
+        # Daily kWh (Starts 44-54) and kW (Starts 55-60) use GS_Split_kWh_SF.
+        ac1_l1_buy = _meter(r[43], energy_sf)   # Start 44 AC1_L1_Buy_kWh
+        ac1_l1_sell = _meter(r[45], energy_sf)  # Start 46 AC1_L1_Sell_kWh
+        ac1_l2_buy = _meter(r[48], energy_sf)   # Start 49 AC1_L2_Buy_kWh
+        ac1_l2_sell = _meter(r[50], energy_sf)  # Start 51 AC1_L2_Sell_kWh
+        buy_kw = _meter(r[55], energy_sf)       # Start 56 Buy_kW
+        sell_kw = _meter(r[56], energy_sf)      # Start 57 Sell_kW
+        grid_power = (
+            None
+            if buy_kw is None or sell_kw is None
+            else round((buy_kw - sell_kw) * 1000)
+        )
+
         return {
             "port": r[2],
             "mode_raw": mode_raw,
@@ -959,23 +991,28 @@ class OutbackMate3sDevice:
             "l2_output_voltage": _scaled(r[20], ac_voltage_sf, signed=True),
             "house_l1_current": house_l1_current,
             "house_l2_current": house_l2_current,
-            "today_ac1_l1_buy_energy": _scaled(r[43], energy_sf),
-            "today_ac2_l1_buy_energy": _scaled(r[44], energy_sf),
-            "today_ac1_l1_sell_energy": _scaled(r[45], energy_sf),
-            "today_ac2_l1_sell_energy": _scaled(r[46], energy_sf),
-            "today_l1_output_energy": _scaled(r[47], energy_sf),
-            "today_ac1_l2_buy_energy": _scaled(r[48], energy_sf),
-            "today_ac2_l2_buy_energy": _scaled(r[49], energy_sf),
-            "today_ac1_l2_sell_energy": _scaled(r[50], energy_sf),
-            "today_ac2_l2_sell_energy": _scaled(r[51], energy_sf),
-            "today_l2_output_energy": _scaled(r[52], energy_sf),
-            "today_charger_energy": _scaled(r[53], energy_sf),
-            "output_power": _scaled(r[54], energy_sf),
-            "buy_power": _scaled(r[55], energy_sf),
-            "sell_power": _scaled(r[56], energy_sf),
-            "charge_power": _scaled(r[57], energy_sf),
-            "load_power": _scaled(r[58], energy_sf),
-            "ac_couple_power": _scaled(r[59], energy_sf) if len(r) > 59 else None,
+            "today_ac1_l1_buy_energy": ac1_l1_buy,
+            "today_ac2_l1_buy_energy": _meter(r[44], energy_sf),
+            "today_ac1_l1_sell_energy": ac1_l1_sell,
+            "today_ac2_l1_sell_energy": _meter(r[46], energy_sf),
+            "today_l1_output_energy": _meter(r[47], energy_sf),
+            "today_ac1_l2_buy_energy": ac1_l2_buy,
+            "today_ac2_l2_buy_energy": _meter(r[49], energy_sf),
+            "today_ac1_l2_sell_energy": ac1_l2_sell,
+            "today_ac2_l2_sell_energy": _meter(r[51], energy_sf),
+            "today_l2_output_energy": _meter(r[52], energy_sf),
+            "today_charger_energy": _meter(r[53], energy_sf),
+            # Energy dashboard: grid (AC1) totals for both legs.
+            "today_grid_import_energy": _sum_or_none(ac1_l1_buy, ac1_l2_buy),
+            "today_grid_export_energy": _sum_or_none(ac1_l1_sell, ac1_l2_sell),
+            "output_power": _meter(r[54], energy_sf),
+            "buy_power": buy_kw,
+            "sell_power": sell_kw,
+            # Energy dashboard "Standard" grid power: + import, - export (W).
+            "grid_power": grid_power,
+            "charge_power": _meter(r[57], energy_sf),
+            "load_power": _meter(r[58], energy_sf),
+            "ac_couple_power": _meter(r[59], energy_sf) if len(r) > 59 else None,
         }
 
     @staticmethod
@@ -1008,13 +1045,13 @@ class OutbackMate3sDevice:
             "array_current": _scaled(r[11], current_sf),
             "charger_state_raw": state_raw,
             "charger_state": CHARGER_STATES.get(state_raw, f"Unknown ({state_raw})"),
-            "output_power_w": _scaled(r[13], power_sf),
+            "output_power_w": _meter(r[13], power_sf),
             "today_min_battery_voltage": _scaled(r[14], voltage_sf),
             "today_max_battery_voltage": _scaled(r[15], voltage_sf),
             "last_voc": _scaled(r[16], voltage_sf),
             # Today's peak VOC is documented as raw volts (no scale factor).
             "today_peak_voc": float(r[17]),
-            "today_energy_kwh": _scaled(r[18], kwh_sf),
+            "today_energy_kwh": _meter(r[18], kwh_sf),
             "today_ah": _scaled(r[19], ah_sf),
             "lifetime_energy_kwh": r[20],
             "lifetime_kah": _scaled(r[21], kwh_sf),

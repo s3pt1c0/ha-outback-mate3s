@@ -102,6 +102,7 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "load_power", "House Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
     _desc("radian", "buy_power", "Grid Buy Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
     _desc("radian", "sell_power", "Grid Sell Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
+    _desc("radian", "grid_power", "Grid Power", unit=UnitOfPower.WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=0, icon="mdi:transmission-tower"),
     _desc("radian", "output_power", "Radian Output Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
     _desc("radian", "charge_power", "Radian Charge Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
 
@@ -112,6 +113,8 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "today_l1_output_energy", "Today L1 Output Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_l2_output_energy", "Today L2 Output Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_charger_energy", "Today Charger Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
+    _desc("radian", "today_grid_import_energy", "Grid Import Today Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1, icon="mdi:transmission-tower-import"),
+    _desc("radian", "today_grid_export_energy", "Grid Export Today Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1, icon="mdi:transmission-tower-export"),
 
     _desc("radian", "left_transformer_temperature", "Left Transformer Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
     _desc("radian", "left_capacitor_temperature", "Left Capacitor Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
@@ -380,7 +383,11 @@ class OutbackSolarTotalPowerSensor(_OutbackBase, SensorEntity):
     @property
     def native_value(self):
         controllers = self.coordinator.data.get("charge_controllers", {})
-        return sum(float(cc.get("output_power_w") or 0) for cc in controllers.values())
+        values = [cc.get("output_power_w") for cc in controllers.values()]
+        # Never publish a partial total: a missing controller makes it unknown.
+        if any(value is None for value in values):
+            return None
+        return sum(float(value) for value in values)
 
 
 class OutbackSolarTodayEnergySensor(_OutbackBase, SensorEntity):
@@ -400,4 +407,9 @@ class OutbackSolarTodayEnergySensor(_OutbackBase, SensorEntity):
     @property
     def native_value(self):
         controllers = self.coordinator.data.get("charge_controllers", {})
-        return round(sum(float(cc.get("today_energy_kwh") or 0) for cc in controllers.values()), 1)
+        values = [cc.get("today_energy_kwh") for cc in controllers.values()]
+        # A partial sum would look like a meter reset to the Energy dashboard
+        # and double-count when the missing controller returns.
+        if any(value is None for value in values):
+            return None
+        return round(sum(float(value) for value in values), 1)
