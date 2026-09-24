@@ -124,6 +124,59 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "right_fet_temperature", "Right FET Temperature", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=MEAS, precision=0, category=DIAG),
 )
 
+# Single-phase Radian / FXR (DID 64117) and FX / VFX (DID 64113), one set per
+# HUB port. Monitoring only; experimental until validated on real hardware.
+SP = ("single_phase",)
+FX = ("fx",)
+BOTH = ("single_phase", "fx")
+V = UnitOfElectricPotential.VOLT
+A = UnitOfElectricCurrent.AMPERE
+KW = UnitOfPower.KILO_WATT
+KWH = UnitOfEnergy.KILO_WATT_HOUR
+C = UnitOfTemperature.CELSIUS
+SDC = SensorDeviceClass
+
+# (field, name, unit, device_class, state_class, precision, category, icon, types)
+INVERTER_SENSOR_SPECS: tuple[tuple, ...] = (
+    ("mode", "Mode", None, None, None, None, None, "mdi:solar-power-variant", BOTH),
+    ("ac_input_state", "AC Input State", None, None, None, None, None, "mdi:transmission-tower", BOTH),
+    ("ac_input_selection", "AC Input Selection", None, None, None, None, DIAG, None, SP),
+    ("error_flags", "Errors", None, None, None, None, DIAG, "mdi:alert-circle", BOTH),
+    ("warning_flags", "Warnings", None, None, None, None, DIAG, "mdi:alert", BOTH),
+    ("sell_status", "Sell Status", None, None, None, None, DIAG, "mdi:transmission-tower-export", BOTH),
+    ("battery_voltage", "Battery Voltage", V, SDC.VOLTAGE, MEAS, 1, None, None, BOTH),
+    ("frequency", "AC Frequency", UnitOfFrequency.HERTZ, SDC.FREQUENCY, MEAS, 1, None, None, BOTH),
+    ("selected_input_voltage", "AC Input Voltage", V, SDC.VOLTAGE, MEAS, 0, None, None, BOTH),
+    ("grid_voltage", "Grid Voltage", V, SDC.VOLTAGE, MEAS, 0, None, None, SP),
+    ("output_voltage", "Output Voltage", V, SDC.VOLTAGE, MEAS, 0, None, None, BOTH),
+    ("minimum_input_voltage", "Minimum AC Input Voltage", V, SDC.VOLTAGE, MEAS, 0, DIAG, None, BOTH),
+    ("maximum_input_voltage", "Maximum AC Input Voltage", V, SDC.VOLTAGE, MEAS, 0, DIAG, None, BOTH),
+    ("buy_current", "Grid Buy Current", A, SDC.CURRENT, MEAS, 1, None, None, BOTH),
+    ("sell_current", "Grid Sell Current", A, SDC.CURRENT, MEAS, 1, None, None, BOTH),
+    ("output_current", "Inverter Output Current", A, SDC.CURRENT, MEAS, 1, None, None, BOTH),
+    ("charge_current", "Inverter Charge Current", A, SDC.CURRENT, MEAS, 1, None, None, BOTH),
+    ("house_current", "House Current", A, SDC.CURRENT, MEAS, 1, None, None, BOTH),
+    ("load_power", "House Power", KW, SDC.POWER, MEAS, 1, None, None, BOTH),
+    ("buy_power", "Grid Buy Power", KW, SDC.POWER, MEAS, 1, None, None, BOTH),
+    ("sell_power", "Grid Sell Power", KW, SDC.POWER, MEAS, 1, None, None, BOTH),
+    ("grid_power", "Grid Power", UnitOfPower.WATT, SDC.POWER, MEAS, 0, None, "mdi:transmission-tower", BOTH),
+    ("output_power", "Output Power", KW, SDC.POWER, MEAS, 1, None, None, BOTH),
+    ("charge_power", "Charge Power", KW, SDC.POWER, MEAS, 1, None, None, BOTH),
+    ("today_grid_import_energy", "Grid Import Today Energy", KWH, SDC.ENERGY, TOTAL_INC, 1, None, "mdi:transmission-tower-import", BOTH),
+    ("today_grid_export_energy", "Grid Export Today Energy", KWH, SDC.ENERGY, TOTAL_INC, 1, None, "mdi:transmission-tower-export", BOTH),
+    ("today_output_energy", "Today Output Energy", KWH, SDC.ENERGY, TOTAL_INC, 1, None, None, BOTH),
+    ("today_charger_energy", "Today Charger Energy", KWH, SDC.ENERGY, TOTAL_INC, 1, None, None, BOTH),
+    ("left_transformer_temperature", "Left Transformer Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, SP),
+    ("left_capacitor_temperature", "Left Capacitor Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, SP),
+    ("left_fet_temperature", "Left FET Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, SP),
+    ("right_transformer_temperature", "Right Transformer Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, SP),
+    ("right_capacitor_temperature", "Right Capacitor Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, SP),
+    ("right_fet_temperature", "Right FET Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, SP),
+    ("transformer_temperature", "Transformer Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, FX),
+    ("capacitor_temperature", "Capacitor Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, FX),
+    ("fet_temperature", "FET Temperature", C, SDC.TEMPERATURE, MEAS, 0, DIAG, None, FX),
+)
+
 FNDC_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("fndc", "soc", "FNDC SOC", unit=PERCENTAGE, device_class=SensorDeviceClass.BATTERY, state_class=MEAS),
     _desc("fndc", "battery_voltage", "FNDC Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
@@ -209,6 +262,15 @@ async def async_setup_entry(hass, entry: OutbackConfigEntry, async_add_entities)
                 OutbackRadianSensor(coordinator, port, desc)
                 for desc in RADIAN_SENSORS
             )
+
+    inverters = coordinator.data.get("inverters", {})
+    for port in sorted(inverters):
+        inverter_type = inverters[port]["type"]
+        entities.extend(
+            OutbackInverterSensor(coordinator, port, spec)
+            for spec in INVERTER_SENSOR_SPECS
+            if inverter_type in spec[-1]
+        )
 
     if coordinator.data.get("fndc") is not None:
         entities.extend(OutbackSensor(coordinator, desc) for desc in FNDC_SENSORS)
@@ -318,6 +380,30 @@ class OutbackRadianSensor(_TemperatureUnitMixin, _OutbackBase, SensorEntity):
             .get(self._port, {})
             .get(self._field)
         )
+
+
+class OutbackInverterSensor(_TemperatureUnitMixin, _OutbackBase, SensorEntity):
+    """Single-phase Radian / FXR (DID 64117) or FX / VFX (DID 64113) sensor."""
+
+    def __init__(self, coordinator: OutbackMate3sCoordinator, port: int, spec: tuple) -> None:
+        super().__init__(coordinator)
+        field, name, unit, device_class, state_class, precision, category, icon, _types = spec
+        self._port = port
+        self._field = field
+        label = coordinator.data["inverters"][port]["label"]
+        self._attr_name = f"{label} {name}"
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_inv{port}_{field}"
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+        self._attr_state_class = state_class
+        self._attr_suggested_display_precision = precision
+        self._attr_entity_category = category
+        if icon:
+            self._attr_icon = icon
+
+    @property
+    def native_value(self):
+        return self.coordinator.data.get("inverters", {}).get(self._port, {}).get(self._field)
 
 
 class OutbackChargeControllerSensor(_OutbackBase, SensorEntity):

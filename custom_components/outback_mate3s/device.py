@@ -20,8 +20,10 @@ from .const import (
     DID_CHARGE_CONTROLLER_CONFIG,
     DID_CHARGE_CONTROLLER_REALTIME,
     DID_FNDC_REALTIME,
+    DID_FX_REALTIME,
     DID_OUTBACK_GATEWAY,
     DID_OUTBACK_SYSTEM_CONTROL,
+    DID_RADIAN_SINGLE_REALTIME,
     DID_RADIAN_SPLIT_REALTIME,
     MAX_STALE_BLOCK_POLLS,
     SUNSPEC_BASE,
@@ -51,7 +53,9 @@ def _meter(raw: int, sf: int = 0) -> float | None:
     """
     if raw in (0x7FFF, 0x8000, 0xFFFF):
         return None
-    return _scaled(raw, sf)
+    value = _scaled(raw, sf)
+    # Round away binary noise (e.g. 12 * 0.1 = 1.2000000000000002).
+    return round(value, -sf) if sf < 0 else value
 
 
 def _sum_or_none(*values: float | None) -> float | None:
@@ -59,6 +63,17 @@ def _sum_or_none(*values: float | None) -> float | None:
     if any(value is None for value in values):
         return None
     return round(sum(values), 3)  # type: ignore[arg-type]
+
+
+def _at(r: list[int], start: int) -> int | None:
+    """Return the raw register at a documented Start (1-based), if present."""
+    return r[start - 1] if len(r) >= start else None
+
+
+def _meter_at(r: list[int], start: int, sf: int) -> float | None:
+    """Unsigned measurement at a Start; missing register or placeholder -> None."""
+    raw = _at(r, start)
+    return None if raw is None else _meter(raw, sf)
 
 
 def _temperature_c(raw: int, sf: int = 0) -> float | None:
@@ -172,6 +187,9 @@ RADIAN_SELL_STATUS_FLAGS = {
     0x0020: "Sell disabled",
     0x0040: "Battery voltage less than target",
 }
+
+# FX_Sell_Status_Table (Table 16) adds bit 0x0080 to the Radian sell status.
+FX_SELL_STATUS_FLAGS = {**RADIAN_SELL_STATUS_FLAGS, 0x0080: "AC2 selected"}
 
 FNDC_STATUS_FLAGS = {
     0x0001: "AUX relay enabled",
@@ -384,6 +402,9 @@ class OutbackMate3sDevice:
             # by HUB port and is used for stacked / multi-Radian systems.
             "radian": None,
             "radians": {},
+            # Single-phase Radian / FXR (DID 64117) and FX / VFX (DID 64113),
+            # keyed by HUB port. Monitoring only.
+            "inverters": {},
             "charge_controllers": {},
             "charge_controller_configs": dict(
                 self._control_cache.get("charge_controller_configs", {})
@@ -420,6 +441,16 @@ class OutbackMate3sDevice:
             )
         if radian_ports:
             data["radian"] = data["radians"][radian_ports[0]]
+
+        inverter_blocks = [
+            (block, self._parse_single_phase_inverter)
+            for block in self._blocks(DID_RADIAN_SINGLE_REALTIME)
+        ] + [(block, self._parse_fx_inverter) for block in self._blocks(DID_FX_REALTIME)]
+        for block, parser in inverter_blocks:
+            inverter = await self._async_read_realtime(block, parser)
+            prefix = "FX" if inverter["type"] == "fx" else "Radian/FXR"
+            inverter["label"] = f"{prefix} Port {inverter['port']}"
+            data["inverters"][inverter["port"]] = inverter
 
         for block in self._blocks(DID_CHARGE_CONTROLLER_REALTIME):
             cc = await self._async_read_realtime(
@@ -1014,6 +1045,165 @@ class OutbackMate3sDevice:
             "load_power": _meter(r[58], energy_sf),
             "ac_couple_power": _meter(r[59], energy_sf) if len(r) > 59 else None,
         }
+
+    @staticmethod
+    def _inverter_common(
+        *,
+        port: int,
+        inverter_type: str,
+        mode_raw: int | None,
+        error_raw: int | None,
+        warning_raw: int | None,
+        sell_raw: int | None,
+        sell_flags: dict[int, str],
+        ac_input_state_raw: int | None,
+        output_current: float | None,
+        charge_current: float | None,
+        buy_current: float | None,
+        sell_current: float | None,
+        buy_kw: float | None,
+        sell_kw: float | None,
+    ) -> dict[str, Any]:
+        """Fields shared by the single-phase Radian/FXR and FX/VFX blocks."""
+        house_current = (
+            None
+            if None in (buy_current, output_current, sell_current, charge_current)
+            else round(buy_current + output_current - sell_current - charge_current, 3)  # type: ignore[operator]
+        )
+        return {
+            "port": port,
+            "type": inverter_type,
+            "mode_raw": mode_raw,
+            "mode": None if mode_raw is None else RADIAN_MODES.get(mode_raw, f"Unknown ({mode_raw})"),
+            "error_flags": None if error_raw is None else _decode_flags(error_raw, RADIAN_ERROR_FLAGS),
+            "warning_flags": None if warning_raw is None else _decode_flags(warning_raw, RADIAN_WARNING_FLAGS),
+            "sell_status": None if sell_raw is None else _decode_flags(sell_raw, sell_flags),
+            "ac_input_state": (
+                None if ac_input_state_raw is None
+                else "AC USE" if ac_input_state_raw == 1 else "AC DROP"
+            ),
+            "output_current": output_current,
+            "charge_current": charge_current,
+            "buy_current": buy_current,
+            "sell_current": sell_current,
+            "house_current": house_current,
+            "buy_power": buy_kw,
+            "sell_power": sell_kw,
+            "grid_power": (
+                None if buy_kw is None or sell_kw is None else round((buy_kw - sell_kw) * 1000)
+            ),
+        }
+
+    @classmethod
+    def _parse_single_phase_inverter(cls, r: list[int]) -> dict[str, Any]:
+        """Decode DID 64117, single-phase Radian / FXR (Table 12)."""
+        dc_sf = _s16(r[3])     # Start 4
+        ac_i_sf = _s16(r[4])   # Start 5
+        ac_v_sf = _s16(r[5])   # Start 6
+        freq_sf = _s16(r[6])   # Start 7
+        kwh_sf = _s16(r[35]) if len(r) >= 36 else -1  # Start 36
+        selection = _at(r, 29)
+        data = cls._inverter_common(
+            port=r[2],
+            inverter_type="single_phase",
+            mode_raw=_at(r, 15),
+            error_raw=_at(r, 16),
+            warning_raw=_at(r, 17),
+            sell_raw=_at(r, 35),
+            sell_flags=RADIAN_SELL_STATUS_FLAGS,
+            ac_input_state_raw=_at(r, 32),
+            output_current=_meter_at(r, 8, ac_i_sf),
+            charge_current=_meter_at(r, 9, ac_i_sf),
+            buy_current=_meter_at(r, 10, ac_i_sf),
+            sell_current=_meter_at(r, 11, ac_i_sf),
+            buy_kw=_meter_at(r, 44, kwh_sf),
+            sell_kw=_meter_at(r, 45, kwh_sf),
+        )
+        temp = lambda start: None if _at(r, start) is None else _temperature_c(r[start - 1])  # noqa: E731
+        data.update({
+            "grid_voltage": _meter_at(r, 12, ac_v_sf),
+            "generator_voltage": _meter_at(r, 13, ac_v_sf),
+            "output_voltage": _meter_at(r, 14, ac_v_sf),
+            "battery_voltage": _meter_at(r, 18, dc_sf),
+            "temp_comp_target_voltage": _meter_at(r, 19, dc_sf),
+            "left_transformer_temperature": temp(22),
+            "left_capacitor_temperature": temp(23),
+            "left_fet_temperature": temp(24),
+            "right_transformer_temperature": temp(25),
+            "right_capacitor_temperature": temp(26),
+            "right_fet_temperature": temp(27),
+            "battery_temperature": temp(28),
+            "ac_input_selection": None if selection is None else ("Grid" if selection == 0 else "Generator"),
+            "frequency": _meter_at(r, 30, freq_sf),
+            "selected_input_voltage": _meter_at(r, 31, ac_v_sf),
+            "minimum_input_voltage": _meter_at(r, 33, ac_v_sf),
+            "maximum_input_voltage": _meter_at(r, 34, ac_v_sf),
+            # Energy dashboard: AC1 (grid) Buy/Sell, Starts 37 / 39.
+            "today_grid_import_energy": _meter_at(r, 37, kwh_sf),
+            "today_ac2_buy_energy": _meter_at(r, 38, kwh_sf),
+            "today_grid_export_energy": _meter_at(r, 39, kwh_sf),
+            "today_ac2_sell_energy": _meter_at(r, 40, kwh_sf),
+            "today_output_energy": _meter_at(r, 41, kwh_sf),
+            "today_charger_energy": _meter_at(r, 42, kwh_sf),
+            "output_power": _meter_at(r, 43, kwh_sf),
+            "charge_power": _meter_at(r, 46, kwh_sf),
+            "load_power": _meter_at(r, 47, kwh_sf),
+            "ac_couple_power": _meter_at(r, 48, kwh_sf),
+        })
+        return data
+
+    @classmethod
+    def _parse_fx_inverter(cls, r: list[int]) -> dict[str, Any]:
+        """Decode DID 64113, FX / VFX (Table 13).
+
+        Table 13 declares FX_Length = 32 (Starts up to 34) but lists fields up
+        to Start 38. Fields beyond the length the MATE3s actually reports are
+        returned as None instead of being read from the next block.
+        """
+        dc_sf = _s16(r[3])     # Start 4
+        ac_i_sf = _s16(r[4])   # Start 5
+        ac_v_sf = _s16(r[5])   # Start 6
+        freq_sf = _s16(r[6])   # Start 7
+        kwh_sf = _s16(r[27]) if len(r) >= 28 else -1  # Start 28
+        data = cls._inverter_common(
+            port=r[2],
+            inverter_type="fx",
+            mode_raw=_at(r, 13),
+            error_raw=_at(r, 14),
+            warning_raw=_at(r, 15),
+            sell_raw=_at(r, 27),
+            sell_flags=FX_SELL_STATUS_FLAGS,
+            ac_input_state_raw=_at(r, 24),
+            output_current=_meter_at(r, 8, ac_i_sf),
+            charge_current=_meter_at(r, 9, ac_i_sf),
+            buy_current=_meter_at(r, 10, ac_i_sf),
+            sell_current=_meter_at(r, 11, ac_i_sf),
+            buy_kw=_meter_at(r, 34, kwh_sf),
+            sell_kw=_meter_at(r, 35, kwh_sf),
+        )
+        temp = lambda start: None if _at(r, start) is None else _temperature_c(r[start - 1])  # noqa: E731
+        data.update({
+            "output_voltage": _meter_at(r, 12, ac_v_sf),
+            "battery_voltage": _meter_at(r, 16, dc_sf),
+            "temp_comp_target_voltage": _meter_at(r, 17, dc_sf),
+            "transformer_temperature": temp(19),
+            "capacitor_temperature": temp(20),
+            "fet_temperature": temp(21),
+            "frequency": _meter_at(r, 22, freq_sf),
+            "selected_input_voltage": _meter_at(r, 23, ac_v_sf),
+            "minimum_input_voltage": _meter_at(r, 25, ac_v_sf),
+            "maximum_input_voltage": _meter_at(r, 26, ac_v_sf),
+            # FX has one AC Buy/Sell counter (whichever input is in use).
+            "today_grid_import_energy": _meter_at(r, 29, kwh_sf),
+            "today_grid_export_energy": _meter_at(r, 30, kwh_sf),
+            "today_output_energy": _meter_at(r, 31, kwh_sf),
+            "today_charger_energy": _meter_at(r, 32, kwh_sf),
+            "output_power": _meter_at(r, 33, kwh_sf),
+            "charge_power": _meter_at(r, 36, kwh_sf),
+            "load_power": _meter_at(r, 37, kwh_sf),
+            "ac_couple_power": _meter_at(r, 38, kwh_sf),
+        })
+        return data
 
     @staticmethod
     def _parse_charge_controller(r: list[int]) -> dict[str, Any]:

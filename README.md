@@ -76,10 +76,24 @@ The integration discovers the actual register locations dynamically and reads th
 | Charge Controller Real-Time | `64111` |
 | Charge Controller Configuration | `64112` |
 | Radian Split Phase Real-Time | `64115` |
+| Single-phase Radian / FXR Real-Time (experimental) | `64117` |
+| FX / VFX Real-Time (experimental) | `64113` |
 | FLEXnet-DC Real-Time | `64118` |
 | OutBack System Control / AGS | `64120` |
 
 No fixed absolute register addresses are required.
+
+### Supported inverters
+
+| Inverter | Real-time / configuration DID | Support |
+|---|---|---|
+| Radian / FXR, split phase | `64115` / `64116` | Monitoring (tested on GS8048A) |
+| Radian / FXR, single phase | `64117` / `64116` | Monitoring, **experimental** |
+| FX / VFX | `64113` / `64114` | Monitoring, **experimental** |
+
+The inverter configuration blocks (`64116`, `64114`) are not read or written. System-wide controls from DID 64120 (Grid Use, Inverter Mode, Grid Tie, Sell Voltage, charger and AC input current limits) are exposed for every system but have only been tested with a Radian.
+
+Single-phase and FX/VFX support follows the OutBack application note (Tables 12 and 13) and has not been validated on real hardware yet. Reports from owners of these inverters are welcome in [Issues](https://github.com/s3pt1c0/ha-outback-mate3s/issues).
 
 ## Sensors
 
@@ -88,6 +102,13 @@ No fixed absolute register addresses are required.
 Includes operating mode, AC input state/selection, grid/output voltages on L1/L2, inverter output/charge currents, grid buy/sell currents, derived house current on L1/L2, real-time power flows, daily energy values, and selected module/diagnostic telemetry.
 
 On a single-Radian system the existing entity IDs are preserved. On stacked systems, every discovered Radian receives its own sensor set, labeled by Radian number and HUB port (for example `Radian #1 (Port 1)` and `Radian #2 (Port 2)`). Version 1.2.1 intentionally does **not** invent aggregate Radian power totals until stacked-system telemetry has been validated in the field.
+
+### Single-phase Radian / FXR and FX / VFX (experimental)
+
+Each discovered inverter gets its own sensor set, labeled by HUB port (`Radian/FXR Port 1`, `FX Port 2`): mode, AC input state, errors/warnings/sell status, battery voltage, AC frequency and voltages, buy/sell/output/charge currents, derived house current, kW power flows, **Grid Power**, daily Grid Import/Export, Output and Charger energy, and module temperatures.
+
+- Single phase (DID 64117): grid import/export use AC1 Buy/Sell kWh (Starts 37 / 39); Buy/Sell kW are Starts 44 / 45.
+- FX / VFX (DID 64113): the block has one Buy/Sell kWh counter (Starts 29 / 30) for whichever AC input is in use. Table 13 declares `FX_Length = 32` (up to Start 34) but lists fields up to Start 38; fields beyond the length the MATE3s actually reports (Sell kW, Charge kW, Load kW, AC Couple kW) show `unknown`, and **Grid Power** then stays `unknown` because it needs Sell kW.
 
 ### House current calculation
 
@@ -143,7 +164,7 @@ These sensors match what **Settings > Dashboards > Energy** asks for. OutBack pu
 
 Grid power resolution is 0.1 kW, the resolution of the OutBack kW registers (`GS_Split_kWh_SF = -1`).
 
-On stacked multi-Radian systems each Radian gets its own grid sensors; add each one as a separate grid source.
+On stacked multi-Radian systems each Radian gets its own grid sensors; add each one as a separate grid source. Single-phase Radian/FXR and FX/VFX inverters expose the same **Grid Import Today Energy**, **Grid Export Today Energy**, **Grid Power**, **Grid Buy Power** and **Grid Sell Power** sensors per HUB port (see *Supported inverters*).
 
 Totals are never partial: if a register returns a SunSpec placeholder (`0x8000`) or a controller has no data, the total is `unknown` for that poll instead of a lower value that the Energy dashboard would count as a meter reset.
 
@@ -155,7 +176,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.3.1** does **not** require a write/installer password. Writes are sent
+Version **1.3.2** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -281,7 +302,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.3.1
+Current Release -> 1.3.2
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

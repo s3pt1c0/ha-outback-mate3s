@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.2 - 2026-09-24
+
+### Inverter support (experimental, monitoring only)
+
+- Added discovery and monitoring of **single-phase Radian / FXR** inverters (DID 64117, application note Table 12) and **FX / VFX** inverters (DID 64113, Table 13). Each inverter gets a sensor set labeled by HUB port (`Radian/FXR Port N`, `FX Port N`).
+- Sensors: mode, AC input state, errors, warnings, sell status (FX adds `AC2 selected`, Table 16), battery voltage, AC frequency, input/output voltages, buy/sell/output/charge currents, derived house current, kW power flows, daily energy, module temperatures (diagnostic).
+- Energy dashboard per inverter: **Grid Import Today Energy** / **Grid Export Today Energy** (DID 64117 Starts 37 / 39, AC1; DID 64113 Starts 29 / 30), **Grid Power** (Buy kW - Sell kW, W), **Grid Buy Power** / **Grid Sell Power**.
+- FX/VFX: Table 13 declares `FX_Length = 32` but documents fields up to Start 38. Fields beyond the length the MATE3s reports are `unknown` instead of being read from the next block.
+- Setup now also accepts systems whose only inverter block is DID 64117 or 64113.
+- Inverter configuration blocks (DID 64116 / 64114) are not read or written. Split-phase Radian / FXR (DID 64115) behavior is unchanged.
+
+### Values
+
+- Scaled energy/power values are rounded to the register resolution (for example `1.2` instead of `1.2000000000000002`).
+
 ## 1.3.1 - 2026-09-24
 
 ### Validation
