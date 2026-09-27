@@ -101,6 +101,21 @@ Single-phase and FX/VFX support follows the OutBack application note (Tables 12 
 
 Includes operating mode, AC input state/selection, grid/output voltages on L1/L2, inverter output/charge currents, grid buy/sell currents, derived house current on L1/L2, real-time power flows, daily energy values, and selected module/diagnostic telemetry.
 
+L1 + L2 totals are also provided:
+
+| Total sensor | L1 + L2 |
+|---|---|
+| **Grid Buy Current** | Grid L1 + L2 Buy Current (DID 64115 Starts 10 + 17) |
+| **Grid Sell Current** | Grid L1 + L2 Sell Current (Starts 11 + 18) |
+| **Grid Voltage** | Grid L1 + L2 Voltage (Starts 12 + 19) |
+| **House Current** | House L1 + L2 Current (derived) |
+| **Inverter Charge Current** | Inverter L1 + L2 Charge Current (Starts 9 + 16) |
+| **Inverter Output Current** | Inverter L1 + L2 Output Current (Starts 8 + 15) |
+
+On a 120/240 V split-phase system the two legs are 180 degrees apart, so **Grid Voltage** (L1 + L2) is the L1-L2 voltage (about 240 V). A 240 V load draws current on both legs, so it is counted twice in the current totals (total amps x 120 V is approximately the total power).
+
+**Grid AC Input Voltage** is `GS_Split_AC_Input_Voltage` (DID 64115 Start 38), documented as the voltage of the *selected* AC input. If the Radian switches to the generator input (`AC Input Selection` = Generator), it reports the generator voltage.
+
 On a single-Radian system the existing entity IDs are preserved. On stacked systems, every discovered Radian receives its own sensor set, labeled by Radian number and HUB port (for example `Radian #1 (Port 1)` and `Radian #2 (Port 2)`). Version 1.2.1 intentionally does **not** invent aggregate Radian power totals until stacked-system telemetry has been validated in the field.
 
 ### Single-phase Radian / FXR and FX / VFX (experimental)
@@ -176,7 +191,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.3.2** does **not** require a write/installer password. Writes are sent
+Version **1.3.3** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -302,7 +317,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.3.2
+Current Release -> 1.3.3
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

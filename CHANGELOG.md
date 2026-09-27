@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.3 - 2026-09-27
+
+### Sensors
+
+- Added L1 + L2 totals for the split-phase Radian (DID 64115). Per-leg sensors are unchanged; stacked systems get the totals per Radian.
+  - **Grid Buy Current**: Start 10 + Start 17
+  - **Grid Sell Current**: Start 11 + Start 18
+  - **Grid Voltage**: Start 12 + Start 19 (L1-L2 voltage, about 240 V on a split-phase service)
+  - **House Current**: House L1 + House L2 (derived)
+  - **Inverter Charge Current**: Start 9 + Start 16
+  - **Inverter Output Current**: Start 8 + Start 15
+- Renamed **Selected AC Input Voltage** to **Grid AC Input Voltage** (DID 64115 Start 38, `GS_Split_AC_Input_Voltage`). The unique ID is unchanged. Existing installations are migrated automatically from `sensor.outback_mate3s_selected_ac_input_voltage` to `sensor.outback_mate3s_grid_ac_input_voltage`; history and long-term statistics move with it. An entity ID that was changed by hand is left alone. Update automations, scripts and dashboards that use the old entity ID.
+- The experimental single-phase Radian/FXR and FX/VFX **AC Input Voltage** sensors are renamed **Grid AC Input Voltage** for consistency.
+
 ## 1.3.2 - 2026-09-24
 
 ### Inverter support (experimental, monitoring only)

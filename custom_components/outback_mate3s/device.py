@@ -1022,6 +1022,16 @@ class OutbackMate3sDevice:
             "l2_output_voltage": _scaled(r[20], ac_voltage_sf, signed=True),
             "house_l1_current": house_l1_current,
             "house_l2_current": house_l2_current,
+            # L1 + L2 totals (Starts 10+17 Buy, 11+18 Sell, derived House).
+            "buy_current": round(l1_buy_current + l2_buy_current, 3),
+            "sell_current": round(l1_sell_current + l2_sell_current, 3),
+            "house_current": round(house_l1_current + house_l2_current, 3),
+            "output_current": round(l1_output_current + l2_output_current, 3),  # Starts 8+15
+            "charge_current": round(l1_charge_current + l2_charge_current, 3),  # Starts 9+16
+            # L1 + L2 grid voltage (Starts 12 + 19). The legs of a split-phase
+            # service are 180 degrees apart, so this is the L1-L2 (240 V) value.
+            "grid_voltage": _scaled(r[11], ac_voltage_sf, signed=True)
+            + _scaled(r[18], ac_voltage_sf, signed=True),
             "today_ac1_l1_buy_energy": ac1_l1_buy,
             "today_ac2_l1_buy_energy": _meter(r[44], energy_sf),
             "today_ac1_l1_sell_energy": ac1_l1_sell,

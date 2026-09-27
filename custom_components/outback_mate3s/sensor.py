@@ -30,6 +30,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import OutbackConfigEntry
 from .const import CONF_TEMPERATURE_UNIT, DEFAULT_TEMPERATURE_UNIT, DOMAIN
 from .coordinator import OutbackMate3sCoordinator
+from .migrations import plan_entity_id_renames
 from .units import plan_registry_updates
 
 
@@ -79,25 +80,31 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "sell_status", "Radian Sell Status", icon="mdi:transmission-tower-export", category=DIAG),
     _desc("radian", "battery_voltage", "Radian Battery Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=1),
     _desc("radian", "frequency", "AC Frequency", unit=UnitOfFrequency.HERTZ, device_class=SensorDeviceClass.FREQUENCY, state_class=MEAS, precision=1),
-    _desc("radian", "selected_input_voltage", "Selected AC Input Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0, category=DIAG),
+    _desc("radian", "selected_input_voltage", "Grid AC Input Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0, category=DIAG),
     _desc("radian", "minimum_input_voltage", "Minimum AC Input Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0, category=DIAG),
     _desc("radian", "maximum_input_voltage", "Maximum AC Input Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0, category=DIAG),
 
     _desc("radian", "l1_grid_voltage", "Grid L1 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
     _desc("radian", "l2_grid_voltage", "Grid L2 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
+    _desc("radian", "grid_voltage", "Grid Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
     _desc("radian", "l1_output_voltage", "Output L1 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
     _desc("radian", "l2_output_voltage", "Output L2 Voltage", unit=UnitOfElectricPotential.VOLT, device_class=SensorDeviceClass.VOLTAGE, state_class=MEAS, precision=0),
 
     _desc("radian", "l1_buy_current", "Grid L1 Buy Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l2_buy_current", "Grid L2 Buy Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("radian", "buy_current", "Grid Buy Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l1_sell_current", "Grid L1 Sell Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l2_sell_current", "Grid L2 Sell Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("radian", "sell_current", "Grid Sell Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l1_output_current", "Inverter L1 Output Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l2_output_current", "Inverter L2 Output Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("radian", "output_current", "Inverter Output Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l1_charge_current", "Inverter L1 Charge Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l2_charge_current", "Inverter L2 Charge Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("radian", "charge_current", "Inverter Charge Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "house_l1_current", "House L1 Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "house_l2_current", "House L2 Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    _desc("radian", "house_current", "House Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
 
     _desc("radian", "load_power", "House Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
     _desc("radian", "buy_power", "Grid Buy Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
@@ -146,7 +153,7 @@ INVERTER_SENSOR_SPECS: tuple[tuple, ...] = (
     ("sell_status", "Sell Status", None, None, None, None, DIAG, "mdi:transmission-tower-export", BOTH),
     ("battery_voltage", "Battery Voltage", V, SDC.VOLTAGE, MEAS, 1, None, None, BOTH),
     ("frequency", "AC Frequency", UnitOfFrequency.HERTZ, SDC.FREQUENCY, MEAS, 1, None, None, BOTH),
-    ("selected_input_voltage", "AC Input Voltage", V, SDC.VOLTAGE, MEAS, 0, None, None, BOTH),
+    ("selected_input_voltage", "Grid AC Input Voltage", V, SDC.VOLTAGE, MEAS, 0, None, None, BOTH),
     ("grid_voltage", "Grid Voltage", V, SDC.VOLTAGE, MEAS, 0, None, None, SP),
     ("output_voltage", "Output Voltage", V, SDC.VOLTAGE, MEAS, 0, None, None, BOTH),
     ("minimum_input_voltage", "Minimum AC Input Voltage", V, SDC.VOLTAGE, MEAS, 0, DIAG, None, BOTH),
@@ -250,6 +257,18 @@ async def async_setup_entry(hass, entry: OutbackConfigEntry, async_add_entities)
     """Set up MATE3s sensors."""
     coordinator = entry.runtime_data
     entities: list[SensorEntity] = []
+
+    # Rename default entity IDs before the entities are added, so they pick up
+    # the new ID. The recorder moves history and statistics with the rename.
+    registry = er.async_get(hass)
+    for old_id, new_id in plan_entity_id_renames(
+        er.async_entries_for_config_entry(registry, entry.entry_id)
+    ):
+        try:
+            registry.async_update_entity(old_id, new_entity_id=new_id)
+        except ValueError:
+            # New ID already taken (for example renamed by hand): keep the old one.
+            continue
 
     radians = coordinator.data.get("radians", {})
     if len(radians) <= 1 and coordinator.data.get("radian") is not None:
