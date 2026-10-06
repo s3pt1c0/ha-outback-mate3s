@@ -1239,10 +1239,11 @@ class OutbackMate3sDevice:
             "battery_voltage": _scaled(r[8], voltage_sf),
             "pv_voltage": _scaled(r[9], voltage_sf),
             "output_current": _scaled(r[10], current_sf),
-            # The OutBack application note labels CC_Array_Current with CC_Power_SF.
-            # Current firmware values are exposed here exactly using the documented
-            # block position, while the current scale is used for an ampere sensor.
-            "array_current": _scaled(r[11], current_sf),
+            # Application note Table 5: CC_Array_Current (Start 12) is scaled by
+            # CC_Power_SF (Start 6, normally 0 = whole amps), not CC_Current_SF
+            # (Start 5, -1). Using the current scale made Array Current 10x low:
+            # PV Voltage x Array Current came out at about 1/10 of the output watts.
+            "array_current": _scaled(r[11], power_sf),
             "charger_state_raw": state_raw,
             "charger_state": CHARGER_STATES.get(state_raw, f"Unknown ({state_raw})"),
             "output_power_w": _meter(r[13], power_sf),

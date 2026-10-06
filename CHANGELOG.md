@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.4 - 2026-10-06
+
+### Sensors
+
+- Fixed the charge-controller **Array Current** scale (DID 64111 Start 12, `CC_Array_Current`). Per application note Table 5 this register is scaled by `CC_Power_SF` (Start 6, `0`), not `CC_Current_SF` (Start 5, `-1`), so the sensor read 10 times low (11 A was shown as 1.1 A) and PV Voltage x Array Current came out at about one tenth of the controller output watts. Values recorded before 1.3.4 remain 10 times low in history; the entity ID and unique ID are unchanged.
+
 ## 1.3.3 - 2026-09-27
 
 ### Sensors
