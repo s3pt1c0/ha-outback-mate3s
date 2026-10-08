@@ -150,6 +150,17 @@ Each leg is calculated with its own voltage and current. Multiplying the L1 + L2
 
 These sensors follow every one-amp change (about 120 W per leg), so they read like `1857 W` where **Grid Power** reads `1800 W`, but they are not more accurate: each current is rounded to the whole amp, and volts x amps is apparent power (power factor taken as 1). Use them for dashboards, gauges and notifications; keep the kWh sensors for the Energy dashboard. If any input register returns a SunSpec placeholder, all four are `unknown` for that poll. Split-phase Radian (DID 64115) only.
 
+### Binary sensors
+
+| Binary sensor | On when |
+|---|---|
+| **Modbus Connected** (connectivity, diagnostic) | The Modbus polls of the MATE3s succeed. The integration keeps the last values through two missed polls, so this turns off on the third consecutive failure (about 30 s), when the other entities become unavailable. It stays available itself, so automations see `off`. |
+| **Grid Present** (power) | Grid L1 Voltage (DID 64115 Start 12) and Grid L2 Voltage (Start 19) are both above 90 V. Unavailable while the Radian has the generator input selected (`AC Input Selection` = Generator). |
+
+**Grid Present** reports voltage on the grid input, not whether the Radian is using it: after a Grid Drop, or with the grid outside the Radian's input limits, it can be `on` while **AC Input State** is `AC DROP`. Use **AC Input State** to know whether the house is on the grid. Split-phase Radian only; stacked systems get one per Radian.
+
+If Home Assistant starts while the MATE3s is unreachable, the integration retries its setup and its entities, including **Modbus Connected**, do not exist until the first successful connection.
+
 ### Charge controllers
 
 For every detected FM100/FM80 controller the integration includes useful realtime telemetry such as PV/battery voltage, output and array current, watts, charger state, daily min/max battery voltage, Last VOC, Maximum VOC Today, Peak Amps Today, Peak Watts Today, and today kWh/Ah. FM80/FM100 identity and numbering are generated dynamically from the controller configuration/model data rather than fixed HUB-port mappings.
@@ -206,7 +217,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.3.5** does **not** require a write/installer password. Writes are sent
+Version **1.3.6** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -332,7 +343,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.3.5
+Current Release -> 1.3.6
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

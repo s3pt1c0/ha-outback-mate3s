@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.3.6 - 2026-10-07
+
+### Binary sensors
+
+- New `binary_sensor` platform with two entities:
+  - **Modbus Connected** (connectivity, diagnostic): on while the Modbus polls of the MATE3s succeed. The coordinator keeps the last values through two missed polls, so it turns off on the third consecutive failure (about 30 s). It stays available itself, so automations see `off` instead of `unavailable`.
+  - **Grid Present** (power): on when Grid L1 Voltage (DID 64115 Start 12) and Grid L2 Voltage (Start 19) are both above 90 V. Unavailable while the generator input is selected (`AC Input Selection` = Generator) or a voltage register returns a SunSpec placeholder. Stacked systems get one per Radian.
+- **Grid Present** reports voltage on the grid input, not whether the Radian is using it; **AC Input State** (`AC USE` / `AC DROP`) still tells that.
+
 ## 1.3.5 - 2026-10-07
 
 ### Sensors
