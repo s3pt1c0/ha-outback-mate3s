@@ -65,6 +65,17 @@ def _sum_or_none(*values: float | None) -> float | None:
     return round(sum(values), 3)  # type: ignore[arg-type]
 
 
+def _leg_watts(*legs: tuple[float | None, float | None]) -> int | None:
+    """Sum volts x amps over the given legs, in whole watts.
+
+    Returns None when any voltage or current is missing, so a calculated
+    total is never partial.
+    """
+    if any(volts is None or amps is None for volts, amps in legs):
+        return None
+    return round(sum(volts * amps for volts, amps in legs))  # type: ignore[operator]
+
+
 def _at(r: list[int], start: int) -> int | None:
     """Return the raw register at a documented Start (1-based), if present."""
     return r[start - 1] if len(r) >= start else None
@@ -964,6 +975,37 @@ class OutbackMate3sDevice:
             l2_buy_current + l2_output_current - l2_sell_current - l2_charge_current
         )
 
+        l1_grid_voltage = _scaled(r[11], ac_voltage_sf, signed=True)    # Start 12
+        l2_grid_voltage = _scaled(r[18], ac_voltage_sf, signed=True)    # Start 19
+        l1_output_voltage = _scaled(r[13], ac_voltage_sf, signed=True)  # Start 14
+        l2_output_voltage = _scaled(r[20], ac_voltage_sf, signed=True)  # Start 21
+
+        # Calculated watts: volts x amps on each leg, summed (Starts 8-21). The
+        # kW registers (Starts 55-60) have 0.1 kW resolution; these follow every
+        # change of the whole-amp currents instead. They are apparent power
+        # (power factor taken as 1), so the Energy dashboard keeps using the kWh
+        # registers. A SunSpec placeholder in any input makes them unknown.
+        ac_inputs_ok = not any(
+            r[i] in (0x7FFF, 0x8000) for i in (7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 20)
+        )
+        if ac_inputs_ok:
+            grid_import_power_calc = _leg_watts(
+                (l1_grid_voltage, l1_buy_current), (l2_grid_voltage, l2_buy_current)
+            )
+            grid_export_power_calc = _leg_watts(
+                (l1_grid_voltage, l1_sell_current), (l2_grid_voltage, l2_sell_current)
+            )
+            house_power_calc = _leg_watts(
+                (l1_output_voltage, house_l1_current), (l2_output_voltage, house_l2_current)
+            )
+        else:
+            grid_import_power_calc = grid_export_power_calc = house_power_calc = None
+        grid_power_calc = (
+            None
+            if grid_import_power_calc is None or grid_export_power_calc is None
+            else grid_import_power_calc - grid_export_power_calc
+        )
+
         # Daily kWh (Starts 44-54) and kW (Starts 55-60) use GS_Split_kWh_SF.
         ac1_l1_buy = _meter(r[43], energy_sf)   # Start 44 AC1_L1_Buy_kWh
         ac1_l1_sell = _meter(r[45], energy_sf)  # Start 46 AC1_L1_Sell_kWh
@@ -1010,16 +1052,16 @@ class OutbackMate3sDevice:
             "l1_charge_current": l1_charge_current,
             "l1_buy_current": l1_buy_current,
             "l1_sell_current": l1_sell_current,
-            "l1_grid_voltage": _scaled(r[11], ac_voltage_sf, signed=True),
+            "l1_grid_voltage": l1_grid_voltage,
             "l1_generator_voltage": _scaled(r[12], ac_voltage_sf, signed=True),
-            "l1_output_voltage": _scaled(r[13], ac_voltage_sf, signed=True),
+            "l1_output_voltage": l1_output_voltage,
             "l2_output_current": l2_output_current,
             "l2_charge_current": l2_charge_current,
             "l2_buy_current": l2_buy_current,
             "l2_sell_current": l2_sell_current,
-            "l2_grid_voltage": _scaled(r[18], ac_voltage_sf, signed=True),
+            "l2_grid_voltage": l2_grid_voltage,
             "l2_generator_voltage": _scaled(r[19], ac_voltage_sf, signed=True),
-            "l2_output_voltage": _scaled(r[20], ac_voltage_sf, signed=True),
+            "l2_output_voltage": l2_output_voltage,
             "house_l1_current": house_l1_current,
             "house_l2_current": house_l2_current,
             # L1 + L2 totals (Starts 10+17 Buy, 11+18 Sell, derived House).
@@ -1030,8 +1072,12 @@ class OutbackMate3sDevice:
             "charge_current": round(l1_charge_current + l2_charge_current, 3),  # Starts 9+16
             # L1 + L2 grid voltage (Starts 12 + 19). The legs of a split-phase
             # service are 180 degrees apart, so this is the L1-L2 (240 V) value.
-            "grid_voltage": _scaled(r[11], ac_voltage_sf, signed=True)
-            + _scaled(r[18], ac_voltage_sf, signed=True),
+            "grid_voltage": l1_grid_voltage + l2_grid_voltage,
+            # Calculated watts (volts x amps per leg, see above).
+            "grid_import_power_calculated": grid_import_power_calc,
+            "grid_export_power_calculated": grid_export_power_calc,
+            "grid_power_calculated": grid_power_calc,
+            "house_power_calculated": house_power_calc,
             "today_ac1_l1_buy_energy": ac1_l1_buy,
             "today_ac2_l1_buy_energy": _meter(r[44], energy_sf),
             "today_ac1_l1_sell_energy": ac1_l1_sell,

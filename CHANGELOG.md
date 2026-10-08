@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.5 - 2026-10-07
+
+### Sensors
+
+- Added calculated power sensors for the split-phase Radian (DID 64115), in W, from the per-leg voltages and currents (Starts 8-21, whole volts and amps):
+  - **House Power Calculated**: Output L1 Voltage x House L1 Current + Output L2 Voltage x House L2 Current
+  - **Grid Import Power Calculated**: Grid L1 Voltage x Grid L1 Buy Current + Grid L2 Voltage x Grid L2 Buy Current
+  - **Grid Export Power Calculated**: Grid L1 Voltage x Grid L1 Sell Current + Grid L2 Voltage x Grid L2 Sell Current
+  - **Grid Power Calculated**: import - export (+ import / - export)
+- The kW registers (Starts 55-60, `GS_Split_kWh_SF = -1`) move in 100 W steps; the calculated sensors follow every one-amp change (about 120 W per leg), for example `1857 W` where **Grid Power** reads `1800 W`. They are not more accurate: currents are whole amps and volts x amps is apparent power. Use them for dashboards and notifications; the Energy dashboard keeps using the kWh sensors.
+- All four are `unknown` for a poll in which any input register returns a SunSpec placeholder (`0x7FFF` / `0x8000`). Existing sensors and entity IDs are unchanged.
+
 ## 1.3.4 - 2026-10-06
 
 ### Sensors

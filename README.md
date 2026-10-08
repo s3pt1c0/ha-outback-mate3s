@@ -135,6 +135,21 @@ House Current = Buy Current + Inverter Output Current - Sell Current - Charge Cu
 
 This works in Pass Through mode as well as inverter/selling modes.
 
+### Calculated power (volts x amps)
+
+The OutBack kW registers (DID 64115 Starts 55-60) have 0.1 kW resolution (`GS_Split_kWh_SF = -1`), so **Grid Power** and **House Power** move in 100 W steps. The integration also calculates watts from the per-leg voltages and currents, which the MATE3s reports in whole volts and amps (`GS_Split_AC_Voltage_SF = 0`, `GS_Split_AC_Current_SF = 0`):
+
+| Sensor | Calculation |
+|---|---|
+| **House Power Calculated** | Output L1 Voltage x House L1 Current + Output L2 Voltage x House L2 Current |
+| **Grid Import Power Calculated** | Grid L1 Voltage x Grid L1 Buy Current + Grid L2 Voltage x Grid L2 Buy Current |
+| **Grid Export Power Calculated** | Grid L1 Voltage x Grid L1 Sell Current + Grid L2 Voltage x Grid L2 Sell Current |
+| **Grid Power Calculated** | Grid Import Power Calculated - Grid Export Power Calculated (+ import / - export) |
+
+Each leg is calculated with its own voltage and current. Multiplying the L1 + L2 current total by the 240 V **Grid Voltage** would count a 240 V load twice.
+
+These sensors follow every one-amp change (about 120 W per leg), so they read like `1857 W` where **Grid Power** reads `1800 W`, but they are not more accurate: each current is rounded to the whole amp, and volts x amps is apparent power (power factor taken as 1). Use them for dashboards, gauges and notifications; keep the kWh sensors for the Energy dashboard. If any input register returns a SunSpec placeholder, all four are `unknown` for that poll. Split-phase Radian (DID 64115) only.
+
 ### Charge controllers
 
 For every detected FM100/FM80 controller the integration includes useful realtime telemetry such as PV/battery voltage, output and array current, watts, charger state, daily min/max battery voltage, Last VOC, Maximum VOC Today, Peak Amps Today, Peak Watts Today, and today kWh/Ah. FM80/FM100 identity and numbering are generated dynamically from the controller configuration/model data rather than fixed HUB-port mappings.
@@ -177,7 +192,7 @@ These sensors match what **Settings > Dashboards > Energy** asks for. OutBack pu
 | Solar production energy | **Solar Today Energy** | DID 64111 Start 19 (CC Today kWh), all controllers |
 | Solar production power | **Solar Total Power** | DID 64111 Start 14 (CC Watts), all controllers |
 
-Grid power resolution is 0.1 kW, the resolution of the OutBack kW registers (`GS_Split_kWh_SF = -1`).
+Grid power resolution is 0.1 kW, the resolution of the OutBack kW registers (`GS_Split_kWh_SF = -1`). For a finer reading on dashboards, see *Calculated power (volts x amps)*.
 
 On stacked multi-Radian systems each Radian gets its own grid sensors; add each one as a separate grid source. Single-phase Radian/FXR and FX/VFX inverters expose the same **Grid Import Today Energy**, **Grid Export Today Energy**, **Grid Power**, **Grid Buy Power** and **Grid Sell Power** sensors per HUB port (see *Supported inverters*).
 
@@ -191,7 +206,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.3.4** does **not** require a write/installer password. Writes are sent
+Version **1.3.5** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -317,7 +332,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.3.4
+Current Release -> 1.3.5
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

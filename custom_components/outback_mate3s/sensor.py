@@ -112,6 +112,11 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "grid_power", "Grid Power", unit=UnitOfPower.WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=0, icon="mdi:transmission-tower"),
     _desc("radian", "output_power", "Radian Output Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
     _desc("radian", "charge_power", "Radian Charge Power", unit=UnitOfPower.KILO_WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=1),
+    # Volts x amps per leg (whole-amp currents) instead of the 0.1 kW registers.
+    _desc("radian", "house_power_calculated", "House Power Calculated", unit=UnitOfPower.WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=0, icon="mdi:home-lightning-bolt"),
+    _desc("radian", "grid_import_power_calculated", "Grid Import Power Calculated", unit=UnitOfPower.WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=0, icon="mdi:transmission-tower-import"),
+    _desc("radian", "grid_export_power_calculated", "Grid Export Power Calculated", unit=UnitOfPower.WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=0, icon="mdi:transmission-tower-export"),
+    _desc("radian", "grid_power_calculated", "Grid Power Calculated", unit=UnitOfPower.WATT, device_class=SensorDeviceClass.POWER, state_class=MEAS, precision=0, icon="mdi:transmission-tower"),
 
     _desc("radian", "today_ac1_l1_buy_energy", "Today Grid L1 Buy Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
     _desc("radian", "today_ac1_l2_buy_energy", "Today Grid L2 Buy Energy", unit=UnitOfEnergy.KILO_WATT_HOUR, device_class=SensorDeviceClass.ENERGY, state_class=TOTAL_INC, precision=1),
