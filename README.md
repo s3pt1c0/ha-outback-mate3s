@@ -2,6 +2,7 @@
 
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)](https://www.home-assistant.io/)
 [![GitHub Release](https://img.shields.io/github/v/release/s3pt1c0/ha-outback-mate3s?style=flat-square&label=Version)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
+![Maintenance](https://img.shields.io/maintenance/yes/2026.svg)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub total Downloads](https://img.shields.io/github/downloads/s3pt1c0/ha-outback-mate3s/total?style=flat-square)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
