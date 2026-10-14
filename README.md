@@ -2,6 +2,7 @@
 
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.9%2B-blue)](https://www.home-assistant.io/)
 [![GitHub Release](https://img.shields.io/github/v/release/s3pt1c0/ha-outback-mate3s?style=flat-square&label=Version)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
+![Maintenance](https://img.shields.io/maintenance/yes/2026.svg)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub total Downloads](https://img.shields.io/github/downloads/s3pt1c0/ha-outback-mate3s/total?style=flat-square)](https://github.com/s3pt1c0/ha-outback-mate3s/releases)
 ![Modbus](https://img.shields.io/badge/Modbus-TCP-red)
@@ -107,10 +108,13 @@ L1 + L2 totals are also provided:
 |---|---|
 | **Grid Buy Current** | Grid L1 + L2 Buy Current (DID 64115 Starts 10 + 17) |
 | **Grid Sell Current** | Grid L1 + L2 Sell Current (Starts 11 + 18) |
+| **Grid Current** | (Grid L1 + L2 Buy Current) - (Grid L1 + L2 Sell Current): **+** buying from the grid, **-** selling to it |
 | **Grid Voltage** | Grid L1 + L2 Voltage (Starts 12 + 19) |
 | **House Current** | House L1 + L2 Current (derived) |
 | **Inverter Charge Current** | Inverter L1 + L2 Charge Current (Starts 9 + 16) |
 | **Inverter Output Current** | Inverter L1 + L2 Output Current (Starts 8 + 15) |
+
+**Grid Current** is the net grid current of both legs, (Starts 10 + 17) - (Starts 11 + 18): positive while buying and negative while selling. It is `unknown` for a poll in which a Buy or Sell register returns a SunSpec placeholder.
 
 On a 120/240 V split-phase system the two legs are 180 degrees apart, so **Grid Voltage** (L1 + L2) is the L1-L2 voltage (about 240 V). A 240 V load draws current on both legs, so it is counted twice in the current totals (total amps x 120 V is approximately the total power).
 
@@ -217,7 +221,7 @@ Write support is deliberately limited to the controls used on the tested system.
 
 ### Write verification
 
-Version **1.3.6** does **not** require a write/installer password. Writes are sent
+Version **1.3.7** does **not** require a write/installer password. Writes are sent
 directly over the local Modbus connection. Read-back verification uses delayed
 retries and full-block reads because some MATE3s/FM combinations temporarily
 return `0x8000` immediately after a successful write. If a write still cannot be
@@ -343,7 +347,7 @@ Changing Grid Use to OFF commands **Grid Drop**. It does not open a physical uti
 The project uses semantic-style progression. After the last patch digit reaches 9, the middle digit advances:
 
 ```text
-Current Release -> 1.3.6
+Current Release -> 1.3.7
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

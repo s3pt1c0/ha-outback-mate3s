@@ -975,6 +975,16 @@ class OutbackMate3sDevice:
             l2_buy_current + l2_output_current - l2_sell_current - l2_charge_current
         )
 
+        # Net grid current, + buying / - selling: (Buy L1 + Buy L2) - (Sell L1 +
+        # Sell L2), Starts 10 + 17 - (11 + 18). Unknown when a Buy/Sell register
+        # returns a SunSpec placeholder, so 0x8000 never shows as -32768 A.
+        if any(r[i] in (0x7FFF, 0x8000) for i in (9, 10, 16, 17)):
+            grid_current = None
+        else:
+            grid_current = round(
+                (l1_buy_current + l2_buy_current) - (l1_sell_current + l2_sell_current), 3
+            )
+
         l1_grid_voltage = _scaled(r[11], ac_voltage_sf, signed=True)    # Start 12
         l2_grid_voltage = _scaled(r[18], ac_voltage_sf, signed=True)    # Start 19
         l1_output_voltage = _scaled(r[13], ac_voltage_sf, signed=True)  # Start 14
@@ -1067,6 +1077,7 @@ class OutbackMate3sDevice:
             # L1 + L2 totals (Starts 10+17 Buy, 11+18 Sell, derived House).
             "buy_current": round(l1_buy_current + l2_buy_current, 3),
             "sell_current": round(l1_sell_current + l2_sell_current, 3),
+            "grid_current": grid_current,
             "house_current": round(house_l1_current + house_l2_current, 3),
             "output_current": round(l1_output_current + l2_output_current, 3),  # Starts 8+15
             "charge_current": round(l1_charge_current + l2_charge_current, 3),  # Starts 9+16

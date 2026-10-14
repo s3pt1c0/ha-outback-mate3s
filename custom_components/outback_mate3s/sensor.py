@@ -96,6 +96,8 @@ RADIAN_SENSORS: tuple[OutbackSensorDescription, ...] = (
     _desc("radian", "l1_sell_current", "Grid L1 Sell Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l2_sell_current", "Grid L2 Sell Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "sell_current", "Grid Sell Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
+    # Net grid current: + buying from the grid / - selling to it.
+    _desc("radian", "grid_current", "Grid Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1, icon="mdi:transmission-tower"),
     _desc("radian", "l1_output_current", "Inverter L1 Output Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "l2_output_current", "Inverter L2 Output Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),
     _desc("radian", "output_current", "Inverter Output Current", unit=UnitOfElectricCurrent.AMPERE, device_class=SensorDeviceClass.CURRENT, state_class=MEAS, precision=1),

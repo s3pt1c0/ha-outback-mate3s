@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.7 - 2026-10-14
+
+### Sensors
+
+- Added **Grid Current** for the split-phase Radian (DID 64115): net grid current of both legs, (Grid L1 + L2 Buy Current) - (Grid L1 + L2 Sell Current), Starts (10 + 17) - (11 + 18). Positive while buying from the grid, negative while selling to it.
+- It is `unknown` for a poll in which a Buy or Sell register returns a SunSpec placeholder (`0x7FFF` / `0x8000`), instead of a value like -32768 A.
+- **Grid Buy Current** and **Grid Sell Current** (L1 + L2, always positive) are unchanged.
+
 ## 1.3.6 - 2026-10-07
 
 ### Binary sensors
